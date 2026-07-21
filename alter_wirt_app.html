@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alter Wirt – Stunden & Trinkgeld</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --navy: #1F4E78;
+    --navy-dark: #163a59;
+    --bg: #f7f9fb;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a2733;
+    --muted: #6b7c8c;
+    --green: #1a8754;
+    --red: #c0392b;
+    --accent: #2f7fb8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+    font-family: Arial, "Helvetica Neue", sans-serif; font-size: 14px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px 0; color: var(--navy); }
+  h2 { font-size: 16px; margin: 0 0 12px 0; color: var(--navy); }
+  .subtitle { color: var(--muted); margin: 0 0 20px 0; font-size: 13px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    padding: 10px 18px; border: none; background: none; cursor: pointer;
+    font-size: 14px; font-weight: bold; color: var(--muted); border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+  }
+  .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .tab-btn:disabled { cursor: default; opacity: 0.55; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .grid { display: grid; gap: 18px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
+  .kpi { background: linear-gradient(135deg, var(--navy), var(--navy-dark)); color: #fff; border-radius: 10px; padding: 16px 18px; }
+  .kpi .label { font-size: 11.5px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.03em; }
+  .kpi .value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+  form.entry-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: bold; }
+  input[type=date], input[type=number], input[type=text] {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; width: 140px;
+    font-family: inherit;
+  }
+  button {
+    background: var(--navy); color: #fff; border: none; border-radius: 6px; padding: 9px 16px;
+    font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: var(--navy-dark); }
+  button.secondary { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  button.secondary.active-mode { background: var(--navy); color: #fff; }
+  button.danger { background: #fff; color: var(--red); border: 1px solid var(--red); padding: 4px 9px; font-size: 12px; }
+  .preview { font-size: 12.5px; color: var(--muted); background: #eef4f9; border-radius: 6px; padding: 8px 12px; }
+  .preview b { color: var(--navy); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #f0f4f8; color: var(--navy); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; position: sticky; top: 0; }
+  tr:hover td { background: #fafcfe; }
+  tr.year-total td { background: #eef4f9; font-weight: bold; }
+  .scroll-box { max-height: 420px; overflow-y: auto; border-radius: 8px; }
+  .lohn-input { width: 90px; text-align: right; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
+  .lohn-input.missing { border-color: #e0b23c; background: #fffaef; }
+  .chart-wrap { position: relative; height: 280px; }
+  .toolbar { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+  .badge.ok { background: #e3f6ec; color: var(--green); }
+  .badge.warn { background: #fdf0e0; color: #b06a19; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .placeholder { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .progress-track { width: 100%; background: #eef1f5; border-radius: 8px; height: 22px; overflow: hidden; position: relative; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #1a8754, #22b76a); border-radius: 8px 0 0 8px; transition: width 0.4s ease; }
+  .progress-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: var(--navy); }
+  .placeholder h2 { color: var(--muted); }
+  select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: inherit; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  @media print {
+    body { padding: 8px; background: #fff; }
+    .no-print { display: none !important; }
+    #print-header { display: block !important; margin-bottom: 14px; }
+    #print-header h1 { margin: 0 0 2px 0; }
+    #print-header p { margin: 0; color: var(--muted); font-size: 12px; }
+    .card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 12px; }
+    .scroll-box { max-height: none !important; overflow: visible !important; }
+    .kpi { background: #1F4E78 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table { font-size: 11px; }
+  }
+  body.jr-print-mode .tabs,
+  body.jr-print-mode #app-header,
+  body.jr-print-mode #print-header,
+  body.jr-print-mode #tab-arbeit,
+  body.jr-print-mode #tab-finanzen > *:not(#jahresrueckblick-card) { display: none !important; }
+  body.jr-print-mode #tab-finanzen { display: block !important; }
+</style>
+</head>
+<body>
+
+<div id="app-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+  <div>
+    <h1>Alter Wirt</h1>
+    <p class="subtitle">Stunden & Trinkgeld Tracker – lokal gespeichert in diesem Browser</p>
+  </div>
+  <button class="secondary no-print" onclick="window.print()">PDF exportieren</button>
+</div>
+
+<div id="print-header" style="display:none;"></div>
+
+<div class="tabs no-print">
+  <button class="tab-btn active" data-tab="arbeit" onclick="switchTab('arbeit')">Arbeit & Trinkgeld</button>
+  <button class="tab-btn" data-tab="finanzen" onclick="switchTab('finanzen')">Finanzen & Trading</button>
+</div>
+
+<div class="card no-print" id="sync-card">
+  <h2>🔄 Sync (Handy ↔ Rechner)</h2>
+  <p class="note">Verbindet dieses Gerät mit deiner Google-Sheets-Sync-Adresse. Einmal pro Gerät einrichten, danach einfach vor/nach der Nutzung hoch- bzw. runterladen. <span id="sync-url-status"></span></p>
+  <div class="entry-form" style="align-items:flex-end;">
+    <div class="field" style="flex:1; min-width:260px;"><label for="sync-url">Web-App-URL (aus Google Apps Script)</label><input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <button type="button" class="secondary" onclick="saveSyncUrl()">URL speichern</button>
+  </div>
+  <div class="entry-form" style="margin-top:6px;">
+    <button type="button" onclick="syncUpload()">🔼 Hochladen (dieses Gerät → Sheet)</button>
+    <button type="button" onclick="syncDownload()">🔽 Herunterladen (Sheet → dieses Gerät)</button>
+  </div>
+  <p class="note" id="sync-last-status" style="margin-top:8px;"></p>
+</div>
+
+<div id="tab-arbeit">
+
+  <div class="card no-print" style="display:flex; align-items:center; gap:10px; padding:12px 18px;">
+    <label for="kpi-month-select" style="font-weight:bold; color:var(--navy); font-size:13px;">Überblick für Monat:</label>
+    <select id="kpi-month-select"></select>
+  </div>
+
+  <div class="grid grid-4" id="kpi-row"></div>
+
+  <div class="card no-print">
+    <h2>Neuer Eintrag</h2>
+    <form class="entry-form" onsubmit="return handleAddEntry(event)">
+      <div class="field">
+        <label for="in-date">Datum</label>
+        <input type="date" id="in-date" required>
+      </div>
+      <div class="field">
+        <label for="in-std">Stunden (netto)</label>
+        <input type="number" id="in-std" step="0.25" min="0" max="20" placeholder="z.B. 7,5" required>
+      </div>
+      <div class="field">
+        <label for="in-tg">Trinkgeld (€)</label>
+        <input type="number" id="in-tg" step="0.1" min="0" placeholder="z.B. 95.50" required>
+      </div>
+      <button type="submit">Eintrag speichern</button>
+    </form>
+    <p class="note">Trag hier die Nettostunden ein (Pause schon abgezogen) – wird 1:1 übernommen, keine automatische Berechnung mehr.</p>
+  </div>
+
+  <div class="card">
+    <h2>Vergleich</h2>
+    <div class="toolbar no-print" style="justify-content:flex-start;">
+      <button id="btn-mode-ytd" class="secondary" onclick="setCompareMode('ytd')">Jahr bisher vs. Vorjahre</button>
+      <button id="btn-mode-month" class="secondary" onclick="setCompareMode('month')">Monat vs. Vorjahre</button>
+      <select id="compare-month-select" style="display:none;"></select>
+    </div>
+    <p class="preview" id="compare-headline"></p>
+    <div class="scroll-box">
+      <table>
+        <thead id="compare-thead"></thead>
+        <tbody id="compare-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Jahresvergleich</h2>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chartYearly"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Monatsübersicht</h2>
+    <p class="note">Lohn trägst du einmal pro Monat ein (vom Lohnzettel) – gelb markiert heißt: noch offen.</p>
+    <div class="scroll-box">
+      <table id="monthly-table">
+        <thead>
+          <tr><th>Monat</th><th>Std (netto)</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>€/Std TG</th><th>€/Std Lohn</th><th>€/Std Gesamt</th></tr>
+        </thead>
+        <tbody id="monthly-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Tageseinträge</h2>
+    <div class="toolbar">
+      <select id="filter-month"></select>
+      <button class="secondary" onclick="exportBackup()">Backup exportieren</button>
+      <button class="secondary" onclick="document.getElementById('import-file').click()">Backup importieren</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(event)">
+    </div>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Datum</th><th>Std brutto (histor.)</th><th>Std netto</th><th>Trinkgeld</th><th>€/Std</th><th></th></tr></thead>
+        <tbody id="daily-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="tab-finanzen" style="display:none;">
+
+  <div class="grid grid-4" id="fin-kpi-row"></div>
+
+  <div class="card">
+    <h2>Ziel-Tracker</h2>
+    <form class="entry-form no-print" onsubmit="return handleSetZiel(event)">
+      <div class="field"><label for="ziel-betrag">Ziel-Vermögen €</label><input type="number" id="ziel-betrag" step="100" min="0" placeholder="z.B. 50000"></div>
+      <button type="submit">Ziel speichern</button>
+    </form>
+    <div id="ziel-anzeige"></div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Neuer Monatsstand (Depot & Konten)</h2>
+    <form class="entry-form" onsubmit="return handleAddVermogen(event)" style="flex-direction:column; align-items:stretch;">
+      <div class="entry-form" style="align-items:flex-end; margin-bottom:4px;">
+        <div class="field"><label for="v-monat">Monat</label><input type="month" id="v-monat" required></div>
+      </div>
+
+      <p class="note" style="margin-top:0;">Depot-Positionen: Anteile × Kurs (aus deiner Broker-App ablesbar) – so zählt nur, was du wirklich dazukaufst, nicht die tägliche Kursschwankung.</p>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-ftse-anteile">FTSE Anteile</label><input type="number" id="v-ftse-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('ftse')"></div>
+        <div class="field"><label for="v-ftse-kurs">FTSE Kurs €</label><input type="number" id="v-ftse-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('ftse')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-ftse-preview" style="width:120px;">–</div></div>
+      </div>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-ai-anteile">AI & Big Data Anteile</label><input type="number" id="v-ai-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('ai')"></div>
+        <div class="field"><label for="v-ai-kurs">AI & Big Data Kurs €</label><input type="number" id="v-ai-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('ai')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-ai-preview" style="width:120px;">–</div></div>
+      </div>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-dbx-anteile">DBX0AN Anteile</label><input type="number" id="v-dbx-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('dbx')"></div>
+        <div class="field"><label for="v-dbx-kurs">DBX0AN Kurs €</label><input type="number" id="v-dbx-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('dbx')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-dbx-preview" style="width:120px;">–</div></div>
+      </div>
+      <p class="note">Keine Anteile zur Hand? Einfach Anteile = 1 und Kurs = Gesamtwert eintragen – funktioniert genauso.</p>
+
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-festgeld">Festgeld €</label><input type="number" id="v-festgeld" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-trade">Trade Republic €</label><input type="number" id="v-trade" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-targo">Targo €</label><input type="number" id="v-targo" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-bargeld">Bargeld €</label><input type="number" id="v-bargeld" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-sparrate">Sparrate €</label><input type="number" id="v-sparrate" step="0.01" min="0" placeholder="0,00"></div>
+        <button type="submit">Monatsstand speichern</button>
+      </div>
+    </form>
+    <p class="note">Lässt du ein Feld leer, wird 0 angenommen. Existiert der Monat schon, wird er überschrieben (mit Rückfrage).</p>
+  </div>
+
+  <div class="card">
+    <h2>Vermögensentwicklung</h2>
+    <div class="chart-wrap"><canvas id="chartVermogen"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Vermögen – Monatsdetails</h2>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Depot (ETFs)</th><th>Festgeld</th><th>Cash</th><th>Gesamt</th><th>Δ ggü. Vormonat</th><th>Sparrate</th></tr></thead>
+        <tbody id="vermogen-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Anteile-Tracking</h2>
+    <p class="note">Zeigt, wie viele Anteile du hältst und zu welchem Kurs – Zuwachs hier kommt nur von echten Käufen, nicht von Kursschwankung. Nur für Monate mit Anteile-Eingabe verfügbar.</p>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>FTSE Anteile</th><th>FTSE Kurs</th><th>AI Anteile</th><th>AI Kurs</th><th>DBX Anteile</th><th>DBX Kurs</th></tr></thead>
+        <tbody id="anteile-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="kursgewinn-card" style="display:none;">
+    <h2>Kursgewinn vs. Einzahlung</h2>
+    <p class="note">Trennt den monatlichen Depot-Zuwachs in das, was du selbst eingezahlt hast (neue Anteile gekauft), und das, was der Markt dazu beigetragen hat (Kursänderung deiner bestehenden Anteile). Nur für Monate mit vollständigen Anteile-Daten im Vor- und Folgemonat.</p>
+    <div class="chart-wrap"><canvas id="chartKursgewinn"></canvas></div>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Einzahlung (Anteile-Kauf)</th><th>Kursgewinn/-verlust</th><th>Gesamt-Δ Depot</th></tr></thead>
+        <tbody id="kursgewinn-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Neue Fixkosten</h2>
+    <form class="entry-form" onsubmit="return handleAddKosten(event)">
+      <div class="field">
+        <label for="k-kategorie-select">Kategorie</label>
+        <select id="k-kategorie-select" onchange="toggleNewKategorie()"></select>
+      </div>
+      <div class="field" id="k-kategorie-new-wrap" style="display:none;">
+        <label for="k-kategorie-new">Neue Kategorie</label>
+        <input type="text" id="k-kategorie-new" placeholder="z.B. Miete">
+      </div>
+      <div class="field"><label for="k-monat">Monat (ab)</label><input type="month" id="k-monat" required></div>
+      <div class="field"><label for="k-betrag">Betrag €</label><input type="number" id="k-betrag" step="0.01" min="0" placeholder="0,00" required></div>
+      <div class="field">
+        <label for="k-konto">Konto</label>
+        <select id="k-konto"><option>Targo</option><option>Trade Republic</option></select>
+      </div>
+      <div class="field" style="flex-basis:100%;">
+        <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="k-recurring" onchange="toggleRecurring()" style="width:auto;"> Wiederkehrend – gleicher Betrag auch für folgende Monate übernehmen
+        </label>
+      </div>
+      <div class="field" id="k-recurring-wrap" style="display:none;">
+        <label for="k-recurring-until">Wiederholen bis (Monat)</label>
+        <input type="month" id="k-recurring-until">
+      </div>
+      <button type="submit">Kosten speichern</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Fixkosten pro Monat</h2>
+    <div class="chart-wrap" style="height:220px;"><canvas id="chartKosten"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Fixkosten – Details</h2>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Kategorie</th><th>Konto</th><th>Betrag</th><th></th></tr></thead>
+        <tbody id="kosten-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Wachstums-Rechner – Annahmen</h2>
+    <div class="entry-form" style="align-items:flex-end;">
+      <div class="field"><label for="wr-start">Start-Kapital €</label><input type="number" id="wr-start" step="0.01" min="0"></div>
+      <div class="field">
+        <label for="wr-rate">Sparrate €/Monat</label>
+        <input type="number" id="wr-rate" step="0.01" min="0">
+      </div>
+      <button type="button" class="secondary" onclick="useAvgSparrate()">Ø Netto übrig übernehmen</button>
+      <div class="field"><label for="wr-return">Rendite p.a. %</label><input type="number" id="wr-return" step="0.1" min="0"></div>
+      <div class="field"><label for="wr-years">Zeitraum (Jahre)</label><input type="number" id="wr-years" step="1" min="1" max="40"></div>
+      <button type="button" onclick="renderWachstum()">Neu berechnen</button>
+    </div>
+    <p class="note" id="wr-rate-note">Deine Sparrate schwankt je nach Monat – nimm einen festen Wert an oder übernimm den Durchschnitt deines echten Netto übrig (Einkommen minus Fixkosten) aus der Gesamtübersicht unten. Reine Prognose, keine Garantie.</p>
+  </div>
+
+  <div class="card">
+    <h2>Wachstums-Prognose</h2>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chartWachstum"></canvas></div>
+    <div class="scroll-box" style="margin-top:10px;">
+      <table>
+        <thead><tr><th>Quartal</th><th>Prognose Vermögen</th><th>davon Zinseszins (Jahr)</th></tr></thead>
+        <tbody id="wachstum-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Gesamtübersicht (Alter Wirt + Finanzen)</h2>
+    <p class="note">Einkommen aus dem Arbeit-Tab, Fixkosten von hier, Vermögen aus dem Depot-Tracking – alles auf einen Blick.</p>
+    <p class="note" id="gesamt-sparquote-summary" style="font-weight:600;"></p>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Einkommen (Lohn+TG)</th><th>Fixkosten</th><th>Netto übrig</th><th>Sparquote</th><th>Gesamtvermögen</th><th>Δ Vermögen</th></tr></thead>
+        <tbody id="gesamt-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="jahresrueckblick-card">
+    <div class="no-print" style="display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;">
+      <div class="field"><label for="jr-year-select">Jahr</label><select id="jr-year-select" onchange="renderJahresrueckblick()"></select></div>
+      <button type="button" onclick="printJahresrueckblick()">Jahresrückblick als PDF exportieren</button>
+    </div>
+    <h2 style="margin-top:14px;">Jahresrückblick</h2>
+    <p class="note" id="jr-created-note"></p>
+    <div id="jr-content"></div>
+  </div>
+
+</div>
+
+<script>
+const SEED_DAILY = [["2023-06-01",8,7.5,94.1],["2023-06-02",8.5,8,83.9],["2023-06-03",7,6.5,132.72],["2023-06-04",8,7.5,137.6],["2023-06-05",5,5,17.1],["2023-06-07",8,7.5,64],["2023-06-08",8.5,8,178.5],["2023-06-09",7.5,7,40],["2023-06-10",9,8.5,133.6],["2023-06-11",12,11,172.41],["2023-06-14",13.5,12.5,157.4],["2023-06-15",9,8.5,81.9],["2023-06-16",12.5,11.5,204.5],["2023-06-17",11.25,10.25,143.03],["2023-06-18",10.75,9.75,107.66],["2023-06-21",8.5,8,66.5],["2023-06-22",8.5,8,115.75],["2023-06-23",8,7.5,83.5],["2023-06-24",7,6.5,63],["2023-06-25",8.75,8.25,132.59],["2023-06-27",6,6,61],["2023-06-28",8.5,8,73.2],["2023-06-29",9.5,9,152.55],["2023-07-01",8.75,8.25,85.5],["2023-07-02",10.5,9.5,103.6],["2023-07-05",8.75,8.25,119.3],["2023-07-06",7.5,7,89.05],["2023-07-07",12,11,148.4],["2023-07-08",8.25,7.75,140.9],["2023-07-09",12,11,134.82],["2023-07-12",7.5,7,49],["2023-07-13",8.5,8,111.32],["2023-07-14",8,7.5,69.75],["2023-07-15",11,10,162.4],["2023-07-16",11,10,108.4],["2023-07-17",11.25,10.25,118.2],["2023-07-18",3,3,28],["2023-07-19",7.5,7,56.67],["2023-07-20",8.5,8,99.74],["2023-07-21",8.5,8,85.4],["2023-07-22",10.25,9.25,152.5],["2023-07-23",10.25,9.25,120.8],["2023-07-25",9.25,8.75,81.26],["2023-07-26",8.25,7.75,148.4],["2023-07-27",6.75,6.25,91.25],["2023-07-28",8,7.5,138.1],["2023-07-29",7,6.5,135.9],["2023-07-30",9.25,8.75,139.6],["2023-07-31",7.75,7.25,55.2],["2023-08-01",7.75,7.25,106.6],["2023-08-03",6.5,6,65.2],["2023-08-04",7,6.5,76.3],["2023-08-05",6,6,70.5],["2023-08-06",8,7.5,88.6],["2023-08-07",8,7.5,85.7],["2023-08-08",7.25,6.75,108.3],["2023-08-09",7.75,7.25,60.7],["2023-08-10",7.75,7.25,128.59],["2023-08-12",7.25,6.75,113.9],["2023-08-13",10.75,9.75,162],["2023-08-18",10.5,9.5,60.6],["2023-08-19",8.25,7.75,106.9],["2023-08-20",13.25,12.25,189.5],["2023-08-22",8.5,8,112],["2023-08-23",8.5,8,133.6],["2023-08-24",6,6,103.9],["2023-08-25",8.25,7.75,74.3],["2023-08-26",8.75,8.25,155],["2023-08-27",6,6,89.7],["2023-08-29",5.5,5.5,55.7],["2023-08-30",8.5,8,124.5],["2023-08-31",7.25,6.75,78.6],["2023-09-10",11,10,173.8],["2023-09-11",11,10,102.01],["2023-09-12",11.5,10.5,114],["2023-09-13",7.5,7,41.5],["2023-09-15",9.75,9,68.8],["2023-09-16",9.75,9,156.1],["2023-09-17",11.5,10.5,189.3],["2023-09-20",6,6,69.2],["2023-09-21",7.5,7,72.2],["2023-09-22",10.5,9.5,99.7],["2023-09-23",8,7.5,94.3],["2023-09-24",8.5,8,153],["2023-09-27",6,6,75.37],["2023-09-28",8.75,8.25,113.75],["2023-09-29",8.25,7.75,102.6],["2023-09-30",9,8.5,20.2],["2023-10-01",10.75,10,155.2],["2023-10-04",12,11.25,151.5],["2023-10-05",12.5,11.75,93.5],["2023-10-06",7.75,7.25,103],["2023-10-07",13,12,125.6],["2023-10-08",12,11.25,155.5],["2023-10-09",6,6,70.2],["2023-10-11",5.5,5.5,70.2],["2023-10-12",5.5,5.5,45.2],["2023-10-13",8,7.5,61],["2023-10-14",11.5,10.75,76.3],["2023-10-15",11,10.25,146.02],["2023-10-18",4.25,4.25,10.5],["2023-10-19",8,7.5,104.15],["2023-10-20",8,7.5,45.6],["2023-10-21",11,10.25,191.7],["2023-10-22",11.25,10.5,184.9],["2023-10-23",8,7.5,104.45],["2023-10-24",8,7.5,104.45],["2023-10-25",1.75,1.75,null],["2023-10-29",8,7.5,66.5],["2023-10-30",7.75,7.25,161.5],["2023-10-31",3.5,3.5,32.5],["2023-11-01",8,7.5,132.5],["2023-11-03",8.75,8.25,173.3],["2023-11-04",7.5,7,62.6],["2023-11-05",8.5,8,120.2],["2023-11-06",8.5,8,75.5],["2023-11-07",7.25,6.75,75],["2023-11-08",7.75,7.25,60.9],["2023-11-09",5.5,5.5,45.9],["2023-11-11",8,7.5,109.7],["2023-11-12",5.5,5.5,64.1],["2023-11-13",8.25,7.75,112.7],["2023-11-15",7.75,7.25,88.7],["2023-11-16",6,6,38.2],["2023-11-17",7,6.5,37.5],["2023-11-18",7.5,7,61.4],["2023-11-19",7.25,6.75,61.4],["2023-11-20",8,7.5,61.4],["2023-11-22",7,6.5,108.1],["2023-11-23",5,5,49.5],["2023-11-25",7.5,7,50.1],["2023-11-26",6,6,50],["2023-11-27",7.75,7.25,38.4],["2023-11-29",7,6.5,57.3],["2023-11-30",7.5,7,114.4],["2023-12-01",7.25,6.75,175.2],["2023-12-02",13,12,134.2],["2023-12-03",10.5,9.75,119.2],["2023-12-04",7.75,7.25,73.8],["2023-12-06",7.25,6.75,104],["2023-12-07",7.5,7,104],["2023-12-08",4.25,4.25,106.61],["2023-12-09",7.25,6.75,116],["2023-12-10",10.5,9.75,116],["2023-12-11",6,6,73.8],["2023-12-13",6,6,78.8],["2023-12-14",7.5,7,111.6],["2023-12-15",11.5,10.75,128.6],["2023-12-16",4,4,41.7],["2023-12-17",6,6,41.7],["2023-12-19",7,6.5,56.4],["2023-12-20",7.75,7.25,60],["2024-01-04",8,7.5,100],["2024-01-05",10,9.25,128.7],["2024-01-06",7.5,7,128.1],["2024-01-07",10.25,9.5,94.9],["2024-01-08",7.5,7,77.4],["2024-01-09",6,6,37.7],["2024-01-10",7.25,6.75,103.4],["2024-01-11",7.5,7,106.6],["2024-01-15",6.75,6.25,4.1],["2024-01-16",7,6.5,58.4],["2024-01-17",7.25,6.75,34.8],["2024-01-18",4.25,4.25,13.4],["2024-01-19",7,6.5,68.5],["2024-01-20",9,8.5,124.9],["2024-01-21",5.5,5.5,43],["2024-01-25",5.5,5.5,36.8],["2024-01-26",8.25,7.75,108.3],["2024-01-27",10.5,9.75,254],["2024-01-28",6,6,148],["2024-01-29",6,6,92.1],["2024-01-30",6,6,83],["2024-01-31",5,5.5,45],["2024-02-03",7.75,7.25,166.4],["2024-02-04",6.75,6.25,118.5],["2024-02-05",7,6.5,110.8],["2024-02-06",8,7.5,120.7],["2024-02-07",6,6,34],["2024-02-08",2.5,2.5,41.8],["2024-02-11",6,6,40],["2024-02-12",7,6.5,41.1],["2024-02-13",7,6.5,67.41],["2024-02-14",7,6.5,117.8],["2024-02-15",7.25,6.75,158.7],["2024-02-18",7,6.5,47.4],["2024-02-19",7.5,7,104.7],["2024-02-20",6.5,6,64.9],["2024-02-21",7.75,7.25,110],["2024-02-22",4.25,4.25,27.1],["2024-02-24",3.75,3.75,19],["2024-02-25",5.5,5.5,95.51],["2024-02-26",7.25,6.75,87.5],["2024-02-27",8,7.5,72.7],["2024-02-28",7.75,7.25,93.2],["2024-03-02",6,6,63],["2024-03-03",6.75,6.25,116.6],["2024-03-09",6,6,67.5],["2024-03-10",7,6.5,105.5],["2024-03-11",6,6,56],["2024-03-12",7.5,7,112],["2024-03-15",7.5,7,96.6],["2024-03-16",6,6,66.5],["2024-03-17",5,5,44.9],["2024-03-18",7,6.5,43.4],["2024-03-19",6,6,68.6],["2024-03-20",5.25,5.25,67.4],["2024-03-23",12,11.25,142.11],["2024-03-24",5.25,5.25,129.1],["2024-03-25",7.25,6.75,161.5],["2024-03-26",8.25,7.75,184.8],["2024-03-27",8.5,8,125],["2024-03-29",7,6.5,121.4],["2024-03-30",4,4,24],["2024-03-31",10.5,9.75,146.7],["2024-04-01",7.25,6.75,94],["2024-04-02",8,7.5,69.6],["2024-04-03",7.75,7.25,168.2],["2024-04-06",8,7.5,98.7],["2024-04-07",11.5,10.75,216.8],["2024-04-08",8.5,8,96.8],["2024-04-09",8,7.5,73.4],["2024-04-12",10.5,9.75,119],["2024-04-13",10.75,10,199.3],["2024-04-14",11.75,11,142.4],["2024-04-20",6,6,67.3],["2024-04-21",5.5,5.5,37.6],["2024-04-22",8.75,8.25,168.02],["2024-04-23",7.5,7,103.7],["2024-04-25",5.5,5.5,58.7],["2024-04-26",9,8.5,75.3],["2024-04-27",9,8.5,113.3],["2024-04-28",6,6,50.5],["2024-04-30",6,6,32],["2024-05-01",9.75,9,227.52],["2024-05-03",7,6.5,66.1],["2024-05-04",9.25,8.75,122.3],["2024-05-05",7.5,7,61.75],["2024-05-06",8.25,7.75,85.6],["2024-05-07",8,7.5,131.6],["2024-05-09",9.5,9,170],["2024-05-10",8,7.5,85.9],["2024-05-11",8.75,8.25,126],["2024-05-12",8.25,7.75,86.5],["2024-05-13",9,8.5,91.7],["2024-05-14",7,6.5,113.5],["2024-05-16",8,7.5,73],["2024-05-18",7.5,7,90.3],["2024-05-19",9.5,9,166.5],["2024-05-20",7.75,7.25,134.8],["2024-05-21",8.25,7.75,90.2],["2024-05-22",8.5,8,106.5],["2024-05-24",8.25,7.75,107.9],["2024-05-25",4,4,34],["2024-05-26",7.25,6.75,83.7],["2024-05-28",7.5,7,101.85],["2024-05-29",5.5,5.5,51],["2024-05-30",7.75,7.25,76],["2024-05-31",7.75,7.25,62.5],["2024-06-02",7.75,7.25,118.2],["2024-06-05",8,7.5,79.18],["2024-06-06",8,7.5,64.4],["2024-06-07",7.25,6.75,97],["2024-06-08",5.25,5.25,71.5],["2024-06-09",7.25,6.75,34],["2024-06-10",4,4,30],["2024-06-20",8.5,8,115.6],["2024-06-21",8,7.5,90],["2024-06-22",11.5,10.75,241.2],["2024-06-23",9.25,8.75,92.2],["2024-06-25",8.75,8.25,147.5],["2024-06-27",7.5,7,39.7],["2024-06-28",8.5,8,128.1],["2024-06-29",7.25,6.75,97.5],["2024-06-30",8,7.5,51.8],["2024-07-02",8.75,8.25,102.66],["2024-07-03",6,6,46.57],["2024-07-05",7.75,7.25,140.1],["2024-07-06",6.75,6.25,97.4],["2024-07-07",7.75,7.25,64.5],["2024-07-09",9.25,8.75,145.62],["2024-07-12",5.5,5.5,46],["2024-07-13",7,6.5,121.7],["2024-07-14",7.5,7,76.7],["2024-07-18",5.25,5.25,53.5],["2024-07-19",8,7.5,55],["2024-07-20",7.5,7,76.5],["2024-07-21",7.75,7.25,125.5],["2024-07-24",8,7.5,71.71],["2024-07-25",9,8.5,75.5],["2024-07-26",9.75,9,197.4],["2024-07-27",9.25,8.75,142.9],["2024-07-28",10.25,9.5,96],["2024-07-30",8.25,7.75,92.6],["2024-07-31",9.5,9,139],["2024-08-01",9,8.5,125],["2024-08-02",9.75,9,143],["2024-08-03",8.5,8,35.5],["2024-08-04",12,11.25,204],["2024-08-06",8.25,7.75,71],["2024-08-07",8.5,8,82.8],["2024-08-08",9,8.5,86.75],["2024-08-09",10.25,9.5,127],["2024-08-10",9.5,9,140.9],["2024-08-11",14.25,13.25,255],["2024-08-13",9,8.5,172.7],["2024-08-14",8,7.5,115.9],["2024-08-15",13,12,276.6],["2024-08-16",9.5,9,130.5],["2024-08-17",10.5,9.75,128.57],["2024-08-18",9,8.5,160.5],["2024-08-20",9.25,8.75,91.3],["2024-08-21",7.5,7,73],["2024-08-22",8.25,7.75,100.5],["2024-08-23",10.25,9.5,159.3],["2024-08-24",13.25,12.25,159.3],["2024-08-25",7,6.5,10],["2024-08-28",9,8.5,119.2],["2024-08-29",8.5,8,93],["2024-08-30",9.5,9,126.5],["2024-08-31",15,14,119],["2024-09-01",13.5,12.5,221],["2024-09-07",7.5,7,126],["2024-09-08",5.75,5.75,33],["2024-09-10",12,11.25,124.1],["2024-09-11",5.5,5.5,79.5],["2024-09-12",7,6.5,52.5],["2024-09-14",7.5,7,53.5],["2024-09-15",7.75,7.25,52.4],["2024-09-18",8.25,7.75,108.9],["2024-09-19",6,6,60.5],["2024-09-20",8,7.5,117.8],["2024-09-21",8.25,7.75,137],["2024-09-22",7,6.5,75],["2024-09-24",8.75,8.25,50.7],["2024-09-26",7.75,7.25,79.7],["2024-09-27",6,6,72.5],["2024-09-28",8,7.5,96],["2024-09-29",9.25,8.75,125.8],["2024-10-01",9,8.5,84.6],["2024-10-02",8.5,8,73],["2024-10-03",9,8.5,89.3],["2024-10-04",13,12,152.1],["2024-10-08",7,6.5,130.8],["2024-10-09",8.5,8,83.7],["2024-10-11",8,7.5,127.7],["2024-10-13",7.5,7,81],["2024-10-15",8.75,8.25,127.8],["2024-10-16",8,7.5,99.6],["2024-10-17",7.5,7,72],["2024-10-19",10,9.25,171],["2024-10-20",8.5,8,99.5],["2024-10-22",9,8.5,103],["2024-10-23",6,6,55],["2024-10-24",8,7.5,131.1],["2024-10-26",7.5,7,108],["2024-10-27",11.75,11,167.2],["2024-10-28",7.75,7.25,54.2],["2024-10-29",7.75,7.25,76.5],["2024-10-30",8,7.5,132.93],["2024-11-01",8,7.5,102.2],["2024-11-02",6,6,59],["2024-11-03",9.5,9,93],["2024-11-30",7.5,7,61.5],["2024-12-01",7.25,6.75,103.5],["2024-12-03",10,9.25,176.7],["2024-12-05",8,7.5,53.5],["2024-12-06",6,6,166.8],["2024-12-07",6,6,46.1],["2024-12-08",5,5,18.6],["2024-12-11",5.5,5.5,55],["2024-12-12",8.5,8,84],["2024-12-13",6,6,37.5],["2024-12-14",5.75,5.75,40],["2024-12-15",5.5,5.5,56.8],["2024-12-18",6,6,65],["2024-12-19",6,6,52.6],["2024-12-20",8,7.5,89],["2024-12-22",12,11.25,78.6],["2024-12-23",8.5,8,91],["2024-12-24",7.5,7,120.5],["2024-12-25",11,10.25,143.2],["2024-12-26",7.5,7,128.5],["2024-12-28",6,6,148.3],["2024-12-29",5.5,5.5,101.9],["2024-12-31",6,6,68],["2025-01-01",6,6,152.5],["2025-01-02",6,6,55],["2025-01-04",6,6,55],["2025-01-05",5.5,5.5,44.5],["2025-01-08",4.5,4.5,69],["2025-01-09",5.25,5.25,67.4],["2025-01-10",7.75,7.25,121],["2025-01-11",8,7.5,152.5],["2025-01-12",7,6.5,64.5],["2025-01-14",6,6,46],["2025-01-15",8.5,8,113.5],["2025-01-16",5.5,5.5,43.5],["2025-01-21",10.75,10,171],["2025-01-22",5,5,13],["2025-01-23",8.5,8,97.5],["2025-01-25",8,7.5,129.5],["2025-01-26",6,6,58],["2025-01-29",7,6.5,100],["2025-01-30",8,7.5,99],["2025-02-01",7.25,6.75,72.5],["2025-02-02",7,6.5,79],["2025-02-04",6.75,6.25,110],["2025-02-05",8.25,7.75,66.5],["2025-02-06",7.5,7,47],["2025-02-08",8,7.5,149.5],["2025-02-09",11.25,10.5,181],["2025-02-12",6,6,50],["2025-02-13",7.75,7.25,66],["2025-02-14",6,6,68],["2025-02-15",4.75,4.75,63.5],["2025-02-16",6.75,6.25,48],["2025-02-18",6,6,58.5],["2025-02-20",8,7.5,42.5],["2025-02-22",9.5,9,131.5],["2025-02-23",6,6,80],["2025-03-06",7.5,7,93.5],["2025-03-07",8.5,8,114.5],["2025-03-08",7,6.5,196],["2025-03-09",10.75,10,188],["2025-03-11",7,6.5,171],["2025-03-12",7,6.5,90],["2025-03-13",1,1,null],["2025-03-15",6,6,42.5],["2025-03-16",6.75,6.25,95.5],["2025-03-18",8.25,7.75,113],["2025-03-19",9.5,9,114.5],["2025-03-20",5.5,5.5,76.5],["2025-03-22",6,6,78.5],["2025-03-23",7,6.5,78.5],["2025-03-25",7,6.5,68.5],["2025-03-26",7.25,6.75,49.5],["2025-03-27",4.5,4.5,29],["2025-03-29",6,6,61.2],["2025-03-30",6.75,6.25,121.5],["2025-04-01",6,6,50],["2025-04-02",4.5,4.5,52],["2025-04-03",6,6,59],["2025-04-05",7.5,7,132],["2025-04-06",8,7.5,125.5],["2025-04-08",9,8.5,164.5],["2025-04-09",8.25,7.75,82.3],["2025-04-10",6,6,91.5],["2025-04-12",7.5,7,105.5],["2025-04-13",13,12,208.5],["2025-04-15",7,6.5,63.5],["2025-04-17",15.5,14.5,286.5],["2025-04-19",9,8.5,106],["2025-04-20",12.5,11.75,144.5],["2025-04-21",7.25,6.75,73],["2025-04-22",8.25,7.75,170.5],["2025-04-23",8.25,7.75,132],["2025-04-24",8.25,7.75,144.5],["2025-04-27",10.5,9.75,178.5],["2025-04-29",6.75,6.25,104.5],["2025-04-30",8.25,7.75,147],["2025-05-01",12,11.25,273],["2025-05-03",5.75,5.75,34.5],["2025-05-06",9.25,8.75,140],["2025-05-07",8,7.5,144.5],["2025-05-08",3,3,18.5],["2025-05-10",9.5,9,160.5],["2025-05-11",8.75,8.25,155],["2025-05-13",10,9.25,120],["2025-05-14",9,8.5,120.5],["2025-05-15",4.5,4.5,50],["2025-05-17",6.75,6.25,118],["2025-05-18",8,7.5,114],["2025-05-20",8.75,8.25,142],["2025-05-21",9.25,8.75,123.5],["2025-05-22",8.25,7.75,118],["2025-05-23",4.25,4.25,23],["2025-05-24",7.75,7.25,142.7],["2025-05-25",8.5,8,97],["2025-05-27",8.5,8,91],["2025-05-28",8.25,7.75,172],["2025-05-29",9,8.5,180.5],["2025-05-31",7.5,7,100],["2025-06-01",8.25,7.75,100],["2025-06-06",6,6,30],["2025-06-07",6,6,76],["2025-06-08",9,8.5,138.5],["2025-06-09",8,7.5,108],["2025-06-10",9.25,8.75,79],["2025-06-11",8.25,7.75,130],["2025-06-12",8.5,8,138],["2025-06-13",8.25,7.75,159.5],["2025-06-14",9.5,9,186.5],["2025-06-15",6,6,88],["2025-06-16",8,7.5,64],["2025-06-17",8.5,8,96.5],["2025-06-18",8.25,7.75,109],["2025-06-19",12,11.25,220],["2025-06-20",9.5,9,132.5],["2025-06-21",8.5,8,151.5],["2025-06-22",8.5,8,145],["2025-06-25",8.5,8,100],["2025-06-26",9,8.5,95.5],["2025-06-28",7.25,6.75,95],["2025-07-01",10,9.25,92.5],["2025-07-02",8.5,8,113],["2025-07-03",9.5,9,100.5],["2025-07-05",7.5,7,100],["2025-07-06",7.5,7,80.5],["2025-07-08",6.75,6.25,128],["2025-07-09",4,4,9],["2025-07-10",9.5,9,133],["2025-07-12",7.75,7.25,81.5],["2025-07-13",7.25,6.75,97],["2025-07-15",8.75,8.25,115],["2025-07-16",8.75,8.25,115],["2025-07-17",3.5,3.5,30.5],["2025-07-19",8.25,7.75,95],["2025-07-20",7.5,7,93.5],["2025-07-22",8.75,8.25,101],["2025-07-23",6,6,78],["2025-07-24",6,6,53],["2025-07-26",7.5,7,145.5],["2025-07-27",7.75,7.25,65],["2025-07-31",8.75,8.25,168],["2025-08-01",8.75,8.25,155],["2025-08-02",8.5,8,100],["2025-08-05",8.75,8.25,107],["2025-08-07",8.25,7.75,143],["2025-08-08",9.5,9,167.5],["2025-08-09",14.25,13.25,361],["2025-08-10",8.5,8,141.5],["2025-08-13",8,7.5,118],["2025-08-14",8.5,8,118.5],["2025-08-15",9.5,9,201],["2025-08-16",7.5,7,60],["2025-08-17",9,8.5,100],["2025-08-18",7.75,7.25,120.5],["2025-08-19",9.5,9,164],["2025-08-21",8.25,7.75,74],["2025-08-22",8.5,8,70],["2025-08-23",13.5,12.5,136.5],["2025-08-24",9.5,9,128],["2025-08-25",7.5,7,50],["2025-08-26",8.5,8,104],["2025-08-27",7.5,7,93.5],["2025-08-28",8,7.5,90],["2025-08-29",8,7.5,60],["2025-08-30",6,6,126],["2025-08-31",7.5,7,98],["2025-09-12",6,6,86],["2025-09-13",5,5,15],["2025-09-14",7.75,7.25,94],["2025-09-16",8,7.5,85],["2025-09-17",7.25,6.75,115],["2025-09-18",8.75,8.25,127],["2025-09-20",8,7.5,120],["2025-09-21",7,6.5,120],["2025-09-23",8,7.5,148],["2025-09-24",5.5,5.5,38],["2025-09-25",8.5,8,71.5],["2025-09-27",7.5,7,75],["2025-09-28",8.25,7.75,142.5],["2025-10-01",12,11.25,257.5],["2025-10-02",7,6.5,43],["2025-10-03",7.75,7.25,168],["2025-10-04",9.5,9,171.5],["2025-10-05",5,5,79.5],["2025-10-07",5.5,5.5,65],["2025-10-11",9.75,9,100],["2025-10-12",7,6.5,123.5],["2025-10-13",7.25,6.75,111],["2025-10-15",8.5,8,100.5],["2025-10-16",12,11.25,156],["2025-10-18",7.75,7.25,100],["2025-10-19",10.5,9.75,207.5],["2025-10-20",6,6,105],["2025-10-22",6,6,194],["2025-10-23",7,6.5,64.5],["2025-10-25",6,6,66],["2025-10-26",6,6,64.5],["2025-10-27",5.5,5.5,57],["2025-10-29",7,6.5,130],["2025-10-30",8,7.5,96.5],["2025-10-31",6.75,6.25,73],["2025-11-01",6,6,133],["2025-11-02",5.75,5.75,41.5],["2025-11-03",7.5,7,118.5],["2025-11-04",7.5,7,83.5],["2025-11-05",7.25,6.75,71.5],["2025-11-06",7.75,7.25,102.5],["2025-11-08",6,6,78.5],["2025-11-09",6,6,74.5],["2025-11-10",5,5,33.5],["2025-11-12",7.5,7,83],["2025-11-13",5.5,5.5,93.5],["2025-11-15",7,6.5,51],["2025-11-16",5.25,5.25,40],["2025-11-17",7.75,7.25,147],["2025-11-19",5.5,5.5,60],["2025-11-20",7,6.5,45],["2025-11-23",5.25,5.25,25.5],["2025-11-24",10.25,9.5,100],["2025-11-26",8,7.5,104],["2025-11-27",6,6,71],["2025-11-28",5.5,5.5,25],["2025-11-29",15.25,14.25,138],["2025-11-30",8.5,8,126],["2025-12-01",4.5,4.5,21.5],["2025-12-03",7,6.5,95.5],["2025-12-04",7.5,7,71],["2025-12-05",7.5,7,182.5],["2025-12-07",6,6,33],["2025-12-09",7.25,6.75,76.5],["2025-12-10",7.25,6.75,79.5],["2025-12-11",8.5,8,92.5],["2025-12-13",6,6,59.5],["2025-12-14",5.5,5.5,65.5],["2025-12-15",5.5,5.5,58],["2025-12-17",6.75,6.25,95],["2025-12-18",6,6,64],["2025-12-19",5.5,5.5,75],["2025-12-20",6,6,47.5],["2025-12-21",5,5,34],["2025-12-23",7.5,7,76.5],["2025-12-24",6,6,45],["2025-12-25",8.75,8.25,175],["2025-12-26",11,10.25,237],["2025-12-27",9.5,9,78.5],["2025-12-28",7.5,7,41],["2025-12-31",7.25,6.75,204.5],["2026-01-01",12,11.25,285],["2026-01-02",4.5,4.5,34],["2026-01-03",5,5,127],["2026-01-04",7,6.5,102],["2026-01-05",6.75,6.25,88],["2026-01-06",7.5,7,74],["2026-01-17",8.25,7.75,131],["2026-01-18",6.75,6.25,71.5],["2026-01-19",5.75,5.75,54.5],["2026-01-20",10.75,10,145],["2026-01-22",6,6,37.5],["2026-01-24",6.75,6.25,66],["2026-01-25",6,6,113],["2026-01-26",8.5,8,78.5],["2026-01-27",7.25,6.75,82.5],["2026-01-28",8,7.5,132],["2026-01-31",7.25,6.75,134.5],["2026-02-01",11.75,11,186],["2026-02-02",6,6,69],["2026-02-03",7,6.5,75],["2026-02-04",7.25,6.75,82],["2026-02-05",7.75,7.25,60],["2026-02-07",7,6.5,46.5],["2026-02-08",8,7.5,115.5],["2026-02-09",6,6,90],["2026-02-10",7,6.5,52],["2026-02-13",7.25,6.75,56.5],["2026-02-14",7.75,7.25,110],["2026-02-15",12,11.25,168],["2026-02-16",6,6,40],["2026-02-17",7,6.5,100.5],["2026-02-18",7.5,7,77],["2026-02-21",7,6.5,178],["2026-02-22",5,5,58],["2026-02-23",7.75,7.25,97],["2026-02-24",11.25,10.5,196],["2026-02-27",6,6,111],["2026-02-28",9,8.5,111],["2026-03-01",11.75,11,264],["2026-03-02",6,6,52],["2026-03-03",7.75,7.25,123],["2026-03-04",2.5,2.5,26.7],["2026-03-06",8.5,8,190],["2026-03-07",7.75,7.25,147],["2026-03-08",10,9.25,163],["2026-03-11",8.25,7.75,47],["2026-03-12",8,7.5,58],["2026-03-13",7.5,7,107],["2026-03-14",8,7.5,217],["2026-03-15",8,7.5,173.5],["2026-03-16",6,6,42],["2026-03-17",9,8.5,50.5],["2026-03-24",7,6.5,69],["2026-03-25",8.75,8.25,117],["2026-03-26",11.5,10.75,149],["2026-03-28",10.25,9.5,159],["2026-03-29",6,6,109],["2026-04-01",null,6,118.5],["2026-04-02",null,7,150.5],["2026-04-03",null,9.5,184.5],["2026-04-04",null,11.25,155],["2026-04-05",null,10.5,225.5],["2026-04-06",null,8.5,203.5],["2026-04-07",null,7,123],["2026-04-09",null,3,10],["2026-04-10",null,6,50],["2026-04-11",null,7.75,76.5],["2026-04-12",null,9,138.5],["2026-04-13",null,6,134.5],["2026-04-14",null,6.75,55],["2026-04-17",null,11.25,203],["2026-04-18",null,7,233],["2026-04-19",null,6,83.5],["2026-04-20",null,7,96],["2026-04-21",null,6,48.5],["2026-04-24",null,7,97.5],["2026-04-25",null,9.75,192],["2026-04-26",null,6.25,103],["2026-04-27",null,6,93.5],["2026-04-30",null,6.75,98],["2026-05-01",null,8.5,100],["2026-05-02",null,11.25,244],["2026-05-03",null,6.5,119],["2026-05-04",null,11.25,177],["2026-05-07",null,7.5,135],["2026-05-08",null,7.5,129],["2026-05-09",null,9.25,138],["2026-05-10",null,8.5,153.5],["2026-05-11",null,7.25,51],["2026-05-12",null,7,54],["2026-05-13",null,7.25,143],["2026-05-15",null,10.75,128.5],["2026-05-16",null,8.5,157.5],["2026-05-17",null,7,97.5],["2026-05-19",null,7.5,71],["2026-05-20",null,6,63],["2026-05-21",null,3.75,55.5],["2026-05-22",null,6.5,117.5],["2026-05-23",null,8.5,134.5],["2026-05-24",null,10.25,191.5],["2026-05-25",null,7.75,136],["2026-05-27",null,7.25,163.5],["2026-05-28",null,7.25,77],["2026-05-29",null,5.75,60],["2026-05-30",null,8.5,161.5],["2026-05-31",null,10,160.5],["2026-06-01",null,7.75,123],["2026-06-02",null,6,84.5],["2026-06-03",null,6.5,98],["2026-06-05",null,6,87],["2026-06-06",null,6,89],["2026-06-07",null,7.75,115],["2026-06-08",null,4.5,50],["2026-06-09",null,7,100.5],["2026-06-11",null,6,48],["2026-06-12",null,7.5,119],["2026-06-13",null,12,269],["2026-06-14",null,10.75,161],["2026-06-15",null,6,66],["2026-06-16",null,6,65],["2026-06-18",null,6,73],["2026-06-19",null,7.5,106],["2026-06-20",null,11.75,170],["2026-06-21",null,3.25,76],["2026-06-22",null,6.5,120.5],["2026-06-23",null,7,100],["2026-06-24",null,5.75,125],["2026-06-25",null,7.5,116],["2026-06-26",null,7.5,100],["2026-06-27",null,12.75,195.5],["2026-06-28",null,8.5,143.5],["2026-06-29",null,8.75,106],["2026-07-01",null,6,45.5],["2026-07-02",null,7.75,145],["2026-07-03",null,7.75,133],["2026-07-04",null,11.5,175.5],["2026-07-05",null,9.75,162],["2026-07-07",null,8,139.5],["2026-07-08",null,6,123.5],["2026-07-09",null,6.75,42.5],["2026-07-10",null,7.5,40],["2026-07-11",null,7.5,225],["2026-07-12",null,10.75,200],["2026-07-13",null,6.75,131],["2026-07-14",null,10,100],["2026-07-15",null,7.75,152],["2026-07-17",null,6.25,126],["2026-07-18",null,8.75,87],["2026-07-19",null,11.25,58]]; // [date, stundenBrutto|null, arbeitstundenSeed|null, trinkgeld|null]
+const SEED_LOHN = {"2023-06":2263.68,"2023-07":2407.46,"2023-08":1939.24,"2023-09":2059.18,"2023-10":2075.8,"2023-11":1905.73,"2023-12":2588.47,"2024-01":1791.89,"2024-02":1573.53,"2024-03":1831.56,"2024-04":2284.2,"2024-05":2532.83,"2024-06":1906.61,"2024-07":2096.45,"2024-08":2813.03,"2024-09":1925.59,"2024-10":2321.69,"2024-11":1811.02,"2024-12":2310.25,"2025-01":1563.53,"2025-02":1630.73,"2025-03":1682.45,"2025-04":2244.49,"2025-05":2328.03,"2025-06":2550.55,"2025-07":1933.02,"2025-08":2574.39,"2025-09":2020.36,"2025-10":2211.58,"2025-11":1962.57,"2025-12":2263.93,"2026-01":2439.09,"2026-02":1960.66,"2026-03":2096.65,"2026-04":2256.87,"2026-05":2771.51,"2026-06":2313.37};   // {"YYYY-MM": lohn}
+
+const SEED_VERMOGEN = [{"monat":"2026-01","ftse":41300.02,"ai_bigdata":0,"dbx0an":0,"festgeld":1669.61,"trade_republic":3288.9,"targo":1050,"bargeld":1800,"sparrate":3000},{"monat":"2026-02","ftse":43912.74,"ai_bigdata":0,"dbx0an":0,"festgeld":1673.65,"trade_republic":2875.53,"targo":1000,"bargeld":1800,"sparrate":3000},{"monat":"2026-03","ftse":46417.07,"ai_bigdata":0,"dbx0an":0,"festgeld":1659.91,"trade_republic":3573.27,"targo":280.41,"bargeld":1200,"sparrate":3000},{"monat":"2026-04","ftse":48719.61,"ai_bigdata":0,"dbx0an":0,"festgeld":1910.73,"trade_republic":3583.31,"targo":27.1,"bargeld":2300,"sparrate":3000},{"monat":"2026-05","ftse":52630.47,"ai_bigdata":0,"dbx0an":0,"festgeld":1929.03,"trade_republic":4557.49,"targo":1579.79,"bargeld":1800,"sparrate":750},{"monat":"2026-06","ftse":55076.56,"ai_bigdata":428.52,"dbx0an":0,"festgeld":1793.57,"trade_republic":4571.37,"targo":1372.84,"bargeld":2650,"sparrate":2500},{"monat":"2026-07","ftse":59445.74,"ai_bigdata":3089.73,"dbx0an":2200.49,"festgeld":1782.05,"trade_republic":2692.15,"targo":796.05,"bargeld":1150,"sparrate":4400}];
+
+const SEED_KOSTEN = [{"kategorie":"Amazon","monat":"2026-01","betrag":89.9,"konto":"Trade Republic"},{"kategorie":"Chat GPT","monat":"2026-01","betrag":23,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-01","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-01","betrag":188,"konto":"Trade Republic"},{"kategorie":"MVG","monat":"2026-01","betrag":58,"konto":"Trade Republic"},{"kategorie":"Magenta TV","monat":"2026-01","betrag":36.95,"konto":"Targo"},{"kategorie":"Miete","monat":"2026-01","betrag":600,"konto":"Targo"},{"kategorie":"Sport Digital","monat":"2026-01","betrag":4.99,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-02","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-02","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-02","betrag":63,"konto":"Trade Republic"},{"kategorie":"Magenta TV","monat":"2026-02","betrag":36.95,"konto":"Targo"},{"kategorie":"Miete","monat":"2026-02","betrag":600,"konto":"Targo"},{"kategorie":"Sport Digital","monat":"2026-02","betrag":4.99,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-03","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-03","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-03","betrag":63,"konto":"Trade Republic"},{"kategorie":"Magenta TV","monat":"2026-03","betrag":36.95,"konto":"Targo"},{"kategorie":"Miete","monat":"2026-03","betrag":600,"konto":"Targo"},{"kategorie":"Sport Digital","monat":"2026-03","betrag":4.99,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-04","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-04","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-04","betrag":63,"konto":"Trade Republic"},{"kategorie":"Magenta TV","monat":"2026-04","betrag":36.95,"konto":"Targo"},{"kategorie":"Miete","monat":"2026-04","betrag":600,"konto":"Targo"},{"kategorie":"Sport Digital","monat":"2026-04","betrag":4.99,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-05","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-05","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-05","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-05","betrag":600,"konto":"Targo"},{"kategorie":"Recht Schutz","monat":"2026-05","betrag":351.3,"konto":"Trade Republic"},{"kategorie":"WWK Haftplicht","monat":"2026-05","betrag":77.31,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-06","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-06","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-06","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-06","betrag":600,"konto":"Targo"},{"kategorie":"Funk","monat":"2026-07","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-07","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-07","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-07","betrag":600,"konto":"Targo"},{"kategorie":"Unfall","monat":"2026-07","betrag":309.53,"konto":"Trade Republic"},{"kategorie":"Funk","monat":"2026-08","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-08","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-08","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-08","betrag":600,"konto":"Targo"},{"kategorie":"Funk","monat":"2026-09","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-09","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-09","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-09","betrag":600,"konto":"Targo"},{"kategorie":"Funk","monat":"2026-10","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-10","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-10","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-10","betrag":600,"konto":"Targo"},{"kategorie":"Funk","monat":"2026-11","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-11","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-11","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-11","betrag":600,"konto":"Targo"},{"kategorie":"Funk","monat":"2026-12","betrag":19.99,"konto":"Trade Republic"},{"kategorie":"IST","monat":"2026-12","betrag":188,"konto":"Targo"},{"kategorie":"MVG","monat":"2026-12","betrag":63,"konto":"Trade Republic"},{"kategorie":"Miete","monat":"2026-12","betrag":600,"konto":"Targo"}];
+
+const STORAGE_DAILY = 'aw_daily_v1';
+const STORAGE_LOHN = 'aw_lohn_v1';
+const STORAGE_VERMOGEN = 'fin_vermogen_v1';
+const STORAGE_KOSTEN = 'fin_kosten_v1';
+const STORAGE_WACHSTUM = 'fin_wachstum_v1';
+const STORAGE_ZIEL = 'fin_ziel_v1';
+const STORAGE_SYNC_URL = 'aw_sync_url_v1';
+const STORAGE_SYNC_LAST = 'aw_sync_last_v1';
+
+const MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function loadDaily() {
+  const raw = localStorage.getItem(STORAGE_DAILY);
+  if (raw) return JSON.parse(raw);
+  const seeded = SEED_DAILY.map(r => ({
+    date: r[0],
+    brutto: r[1],
+    netto: r[2], // historische Nettostunden 1:1 übernommen (Pausenregel hat sich 2023 zwischenzeitlich geändert)
+    trinkgeld: r[3]
+  }));
+  localStorage.setItem(STORAGE_DAILY, JSON.stringify(seeded));
+  return seeded;
+}
+
+function loadLohn() {
+  const raw = localStorage.getItem(STORAGE_LOHN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_LOHN, JSON.stringify(SEED_LOHN));
+  return {...SEED_LOHN};
+}
+
+function loadVermogen() {
+  const raw = localStorage.getItem(STORAGE_VERMOGEN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_VERMOGEN, JSON.stringify(SEED_VERMOGEN));
+  return SEED_VERMOGEN.map(r => ({...r}));
+}
+
+function loadKosten() {
+  const raw = localStorage.getItem(STORAGE_KOSTEN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_KOSTEN, JSON.stringify(SEED_KOSTEN));
+  return SEED_KOSTEN.map(r => ({...r}));
+}
+
+let daily = loadDaily();
+let lohn = loadLohn();
+let vermogen = loadVermogen();
+let kosten = loadKosten();
+
+function saveDaily() { localStorage.setItem(STORAGE_DAILY, JSON.stringify(daily)); }
+function saveLohn() { localStorage.setItem(STORAGE_LOHN, JSON.stringify(lohn)); }
+function saveVermogen() { localStorage.setItem(STORAGE_VERMOGEN, JSON.stringify(vermogen)); }
+function saveKosten() { localStorage.setItem(STORAGE_KOSTEN, JSON.stringify(kosten)); }
+
+function loadZiel() {
+  const raw = localStorage.getItem(STORAGE_ZIEL);
+  return raw ? JSON.parse(raw) : { betrag: null };
+}
+function saveZiel() { localStorage.setItem(STORAGE_ZIEL, JSON.stringify(ziel)); }
+let ziel = loadZiel();
+
+function monthKey(dateStr) { return dateStr.slice(0,7); }
+function fmtMonthLabel(key) {
+  const [y,m] = key.split('-');
+  return MONTHS_DE[parseInt(m,10)-1] + ' ' + y;
+}
+function fmtEUR(n) {
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  return n.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+}
+function fmtNum(n, dec=2) {
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  return n.toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+
+function switchTab(name) {
+  document.getElementById('tab-arbeit').style.display = name === 'arbeit' ? '' : 'none';
+  document.getElementById('tab-finanzen').style.display = name === 'finanzen' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+}
+
+function handleAddEntry(e) {
+  e.preventDefault();
+  const date = document.getElementById('in-date').value;
+  const std = parseFloat(document.getElementById('in-std').value);
+  const tg = parseFloat(document.getElementById('in-tg').value);
+  if (!date || isNaN(std) || isNaN(tg)) return false;
+  const existingIdx = daily.findIndex(d => d.date === date);
+  if (existingIdx >= 0) {
+    if (!confirm(`Für ${date} existiert bereits ein Eintrag. Überschreiben?`)) return false;
+    daily.splice(existingIdx, 1);
+  }
+  daily.push({ date, brutto: null, netto: std, trinkgeld: tg });
+  daily.sort((a,b) => a.date.localeCompare(b.date));
+  saveDaily();
+  document.getElementById('in-std').value = '';
+  document.getElementById('in-tg').value = '';
+  renderAll();
+  return false;
+}
+
+function deleteEntry(date) {
+  if (!confirm(`Eintrag vom ${date} wirklich löschen?`)) return;
+  daily = daily.filter(d => d.date !== date);
+  saveDaily();
+  renderAll();
+}
+
+function updateLohn(key, value) {
+  const v = parseFloat(value);
+  if (value === '' || isNaN(v)) { delete lohn[key]; } else { lohn[key] = v; }
+  saveLohn();
+  renderAll();
+}
+
+function aggregateMonthly() {
+  const map = {};
+  for (const d of daily) {
+    const key = monthKey(d.date);
+    if (!map[key]) map[key] = { std: 0, tg: 0 };
+    map[key].std += (d.netto || 0);
+    map[key].tg += (d.trinkgeld || 0);
+  }
+  const keys = new Set([...Object.keys(map), ...Object.keys(lohn)]);
+  const rows = [...keys].sort().map(key => {
+    const std = map[key] ? map[key].std : 0;
+    const tg = map[key] ? map[key].tg : 0;
+    const l = lohn[key] !== undefined ? lohn[key] : null;
+    const lt = tg + (l || 0);
+    return {
+      key, std, tg, lohn: l, lt,
+      tgPerStd: std > 0 ? tg/std : null,
+      lohnPerStd: (l !== null && std > 0) ? l/std : null,
+      gesamtPerStd: std > 0 ? lt/std : null
+    };
+  });
+  return rows;
+}
+
+function populateKpiMonthSelect() {
+  const sel = document.getElementById('kpi-month-select');
+  const keys = [...new Set([...daily.map(d => monthKey(d.date)), ...Object.keys(lohn)])].sort().reverse();
+  const prevValue = sel.value;
+  sel.innerHTML = keys.map(k => `<option value="${k}">${fmtMonthLabel(k)}</option>`).join('');
+  const realCurrent = new Date().toISOString().slice(0,7);
+  if (prevValue && keys.includes(prevValue)) sel.value = prevValue;
+  else if (keys.includes(realCurrent)) sel.value = realCurrent;
+  else if (keys.length) sel.value = keys[0];
+}
+
+function renderKPIs(monthlyRows) {
+  const sel = document.getElementById('kpi-month-select');
+  const selKey = sel.value || new Date().toISOString().slice(0,7);
+  const cur = monthlyRows.find(r => r.key === selKey) || {std:0, tg:0, lohn:null, lt:0};
+  const selYear = selKey.slice(0,4);
+  const selMonthNum = parseInt(selKey.slice(5,7), 10);
+  const yearRows = monthlyRows.filter(r => r.key.slice(0,4) === selYear && parseInt(r.key.slice(5,7),10) <= selMonthNum);
+  const yearStd = yearRows.reduce((s,r)=>s+r.std,0);
+  const yearTg = yearRows.reduce((s,r)=>s+r.tg,0);
+  const el = document.getElementById('kpi-row');
+  el.innerHTML = `
+    <div class="kpi"><div class="label">${fmtMonthLabel(selKey)}</div><div class="value">${fmtNum(cur.std,1)} Std</div></div>
+    <div class="kpi"><div class="label">Trinkgeld ${fmtMonthLabel(selKey)}</div><div class="value">${fmtEUR(cur.tg)}</div></div>
+    <div class="kpi"><div class="label">Jahr ${selYear} bisher (bis ${fmtMonthLabel(selKey).split(' ')[0]})</div><div class="value">${fmtNum(yearStd,1)} Std</div></div>
+    <div class="kpi"><div class="label">Trinkgeld ${selYear} bisher</div><div class="value">${fmtEUR(yearTg)}</div></div>
+  `;
+}
+
+function renderMonthlyTable(monthlyRows) {
+  const tbody = document.getElementById('monthly-tbody');
+  const sorted = [...monthlyRows].sort((a,b) => b.key.localeCompare(a.key));
+  tbody.innerHTML = sorted.map(r => `
+    <tr>
+      <td>${fmtMonthLabel(r.key)}</td>
+      <td>${fmtNum(r.std,2)}</td>
+      <td>${fmtEUR(r.tg)}</td>
+      <td><input class="lohn-input ${r.lohn===null?'missing':''}" type="number" step="0.01"
+            value="${r.lohn !== null ? r.lohn : ''}" placeholder="offen"
+            onchange="updateLohn('${r.key}', this.value)"></td>
+      <td>${fmtEUR(r.lt)}</td>
+      <td>${fmtEUR(r.tgPerStd)}</td>
+      <td>${fmtEUR(r.lohnPerStd)}</td>
+      <td>${fmtEUR(r.gesamtPerStd)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderYearlyChartsAndTable(monthlyRows) {
+  const years = [...new Set(monthlyRows.map(r=>r.key.slice(0,4)))].sort();
+  const yearAgg = years.map(y => {
+    const rows = monthlyRows.filter(r=>r.key.slice(0,4)===y);
+    const std = rows.reduce((s,r)=>s+r.std,0);
+    const tg = rows.reduce((s,r)=>s+r.tg,0);
+    const knownLohnRows = rows.filter(r=>r.lohn!==null);
+    const l = knownLohnRows.reduce((s,r)=>s+r.lohn,0);
+    const lohnStd = knownLohnRows.reduce((s,r)=>s+r.std,0);
+    return { year: y, std, tg, lohn: l, lohnPerStd: lohnStd>0 ? l/lohnStd : null };
+  });
+  return yearAgg;
+}
+
+let chartYearly;
+
+function renderCharts(monthlyRows) {
+  const yearAgg = renderYearlyChartsAndTable(monthlyRows);
+  if (chartYearly) chartYearly.destroy();
+  chartYearly = new Chart(document.getElementById('chartYearly'), {
+    type: 'bar',
+    data: { labels: yearAgg.map(y=>y.year), datasets: [
+      { label: 'Trinkgeld (€)', data: yearAgg.map(y=>y.tg), backgroundColor: '#2f7fb8' },
+      { label: 'Lohn (€)', data: yearAgg.map(y=>y.lohn), backgroundColor: '#1F4E78' }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+
+function populateMonthFilter() {
+  const sel = document.getElementById('filter-month');
+  const keys = [...new Set(daily.map(d=>monthKey(d.date)))].sort().reverse();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Alle Monate</option>' + keys.map(k => `<option value="${k}">${fmtMonthLabel(k)}</option>`).join('');
+  if (keys.includes(cur)) sel.value = cur;
+}
+
+function renderDailyTable() {
+  const filter = document.getElementById('filter-month').value;
+  const tbody = document.getElementById('daily-tbody');
+  let rows = [...daily].sort((a,b) => b.date.localeCompare(a.date));
+  if (filter) rows = rows.filter(d => monthKey(d.date) === filter);
+  else rows = rows.slice(0, 60);
+  tbody.innerHTML = rows.map(d => {
+    const rate = d.netto > 0 ? d.trinkgeld / d.netto : null;
+    return `<tr>
+      <td>${d.date}</td>
+      <td>${d.brutto !== null ? fmtNum(d.brutto,2) : '–'}</td>
+      <td>${fmtNum(d.netto,2)}</td>
+      <td>${fmtEUR(d.trinkgeld)}</td>
+      <td>${fmtEUR(rate)}</td>
+      <td><button class="danger" onclick="deleteEntry('${d.date}')">Löschen</button></td>
+    </tr>`;
+  }).join('');
+}
+
+let compareMode = 'ytd';
+
+function setCompareMode(mode) {
+  compareMode = mode;
+  document.getElementById('btn-mode-ytd').classList.toggle('active-mode', mode === 'ytd');
+  document.getElementById('btn-mode-month').classList.toggle('active-mode', mode === 'month');
+  document.getElementById('compare-month-select').style.display = mode === 'month' ? '' : 'none';
+  renderComparison();
+}
+
+function populateCompareMonthSelect() {
+  const sel = document.getElementById('compare-month-select');
+  sel.innerHTML = MONTHS_DE.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+  sel.value = new Date().getMonth() + 1;
+  sel.addEventListener('change', renderComparison);
+}
+
+function deltaCell(delta, pct) {
+  if (delta === null || delta === undefined) return '<td>–</td>';
+  const sign = delta >= 0 ? '+' : '';
+  const color = delta >= 0 ? '#1a8754' : '#c0392b';
+  const pctStr = pct === null ? '' : ` (${sign}${fmtNum(pct,1)}%)`;
+  return `<td style="color:${color}; font-weight:bold;">${sign}${fmtEUR(delta)}${pctStr}</td>`;
+}
+
+function renderComparison() {
+  const monthlyRows = aggregateMonthly();
+  const thead = document.getElementById('compare-thead');
+  const tbody = document.getElementById('compare-tbody');
+  const headline = document.getElementById('compare-headline');
+
+  let rows, headlineLabel;
+
+  if (compareMode === 'ytd') {
+    const cutoff = new Date().getMonth() + 1;
+    const monthLabel = MONTHS_DE[cutoff - 1];
+    const years = [...new Set(monthlyRows.map(r => r.key.slice(0,4)))].sort();
+    rows = years.map(y => {
+      const yr = monthlyRows.filter(r => r.key.slice(0,4) === y && parseInt(r.key.split('-')[1],10) <= cutoff);
+      const monthNums = yr.map(r => parseInt(r.key.split('-')[1],10)).sort((a,b)=>a-b);
+      const std = yr.reduce((s,r)=>s+r.std,0);
+      const tg = yr.reduce((s,r)=>s+r.tg,0);
+      const lohnRows = yr.filter(r => r.lohn !== null);
+      const lohn = lohnRows.length ? lohnRows.reduce((s,r)=>s+r.lohn,0) : null;
+      const complete = monthNums.length > 0 && monthNums[0] === 1 && monthNums.length === cutoff;
+      const rangeLabel = monthNums.length ? `${MONTHS_DE[monthNums[0]-1].slice(0,3)}–${MONTHS_DE[monthNums[monthNums.length-1]-1].slice(0,3)}` : '–';
+      return { label: y, std, tg, lohn, lt: tg + (lohn||0), count: yr.length, complete, rangeLabel };
+    }).filter(r => r.count > 0);
+    thead.innerHTML = `<tr><th>Jahr</th><th>Zeitraum</th><th>Std</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>Δ Trinkgeld</th><th>Δ Lohn</th><th>Δ Lohn+TG</th></tr>`;
+    headlineLabel = `Jan–${monthLabel}`;
+  } else {
+    const monthNum = parseInt(document.getElementById('compare-month-select').value, 10);
+    const monthLabel = MONTHS_DE[monthNum - 1];
+    rows = monthlyRows
+      .filter(r => parseInt(r.key.split('-')[1],10) === monthNum)
+      .sort((a,b) => a.key.localeCompare(b.key))
+      .map(r => ({ label: r.key.slice(0,4), std: r.std, tg: r.tg, lohn: r.lohn, lt: r.lt, count: 1, complete: true, rangeLabel: null }));
+    thead.innerHTML = `<tr><th>Jahr</th><th>Std</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>Δ Trinkgeld</th><th>Δ Lohn</th><th>Δ Lohn+TG</th></tr>`;
+    headlineLabel = monthLabel;
+  }
+
+  tbody.innerHTML = rows.map((r,i) => {
+    const prev = rows[i-1];
+    const deltaTg = prev ? r.tg - prev.tg : null;
+    const pctTg = (prev && prev.tg > 0) ? (deltaTg/prev.tg*100) : null;
+    const deltaLohn = (prev && r.lohn !== null && prev.lohn !== null) ? r.lohn - prev.lohn : null;
+    const pctLohn = (deltaLohn !== null && prev.lohn > 0) ? (deltaLohn/prev.lohn*100) : null;
+    const deltaLt = prev ? r.lt - prev.lt : null;
+    const pctLt = (prev && prev.lt > 0) ? (deltaLt/prev.lt*100) : null;
+    const rangeCell = r.rangeLabel !== null ? `<td>${r.rangeLabel}${!r.complete ? ' ⚠︎' : ''}</td>` : '';
+    return `<tr><td>${r.label}</td>${rangeCell}<td>${fmtNum(r.std,1)}</td><td>${fmtEUR(r.tg)}</td><td>${fmtEUR(r.lohn)}</td><td>${fmtEUR(r.lt)}</td>${deltaCell(deltaTg, pctTg)}${deltaCell(deltaLohn, pctLohn)}${deltaCell(deltaLt, pctLt)}</tr>`;
+  }).join('');
+
+  if (rows.length >= 2) {
+    const last = rows[rows.length-1];
+    const prev = rows[rows.length-2];
+    const deltaTg = last.tg - prev.tg;
+    const pctTg = prev.tg > 0 ? (deltaTg/prev.tg*100) : null;
+    const deltaLohn = (last.lohn !== null && prev.lohn !== null) ? last.lohn - prev.lohn : null;
+    const pctLohn = (deltaLohn !== null && prev.lohn > 0) ? (deltaLohn/prev.lohn*100) : null;
+    const deltaLt = last.lt - prev.lt;
+    const pctLt = prev.lt > 0 ? (deltaLt/prev.lt*100) : null;
+    const richtung = deltaTg >= 0 ? 'mehr' : 'weniger';
+    const sign = deltaTg >= 0 ? '+' : '';
+    const lohnTxt = deltaLohn === null ? 'Lohn noch nicht für beide Zeiträume bekannt' :
+      `Lohn ${deltaLohn>=0?'+':''}${fmtEUR(deltaLohn)}${pctLohn!==null?` (${deltaLohn>=0?'+':''}${fmtNum(pctLohn,1)}%)`:''}`;
+    const gesamtTxt = `Gesamt (Lohn+TG) ${deltaLt>=0?'+':''}${fmtEUR(deltaLt)}${pctLt!==null?` (${deltaLt>=0?'+':''}${fmtNum(pctLt,1)}%)`:''}`;
+    const caveat = (!last.complete || !prev.complete) ? ` <span style="color:#b06a19;">(Achtung: nicht beide Zeiträume vollständig ${headlineLabel} – ${prev.rangeLabel||''} vs. ${last.rangeLabel||''})</span>` : '';
+    headline.innerHTML = `<b>${headlineLabel} ${last.label}:</b> ${fmtEUR(last.tg)} Trinkgeld – das sind ${sign}${fmtEUR(deltaTg)} (${sign}${fmtNum(pctTg,1)}%) ${richtung} als ${headlineLabel} ${prev.label}. ${lohnTxt}. ${gesamtTxt}.${caveat}`;
+  } else if (rows.length === 1) {
+    headline.innerHTML = `Für ${headlineLabel} ${rows[0].label} gibt es noch kein Vorjahr zum Vergleichen.`;
+  } else {
+    headline.innerHTML = `Noch keine Daten für ${headlineLabel}.`;
+  }
+}
+
+// ==================== Finanzen & Trading ====================
+
+function aggregateVermogen() {
+  return [...vermogen].sort((a,b) => a.monat.localeCompare(b.monat)).map(r => {
+    const depot = (r.ftse||0) + (r.ai_bigdata||0) + (r.dbx0an||0);
+    const cash = (r.trade_republic||0) + (r.targo||0) + (r.bargeld||0);
+    const festgeld = r.festgeld || 0;
+    const gesamt = depot + festgeld + cash;
+    return { ...r, depot, cash, festgeld, gesamt };
+  });
+}
+
+function handleSetZiel(e) {
+  e.preventDefault();
+  const betrag = parseFloat(document.getElementById('ziel-betrag').value);
+  ziel = { betrag: isNaN(betrag) || betrag <= 0 ? null : betrag };
+  saveZiel();
+  renderZielTracker(aggregateVermogen());
+  return false;
+}
+
+function renderZielTracker(vRows) {
+  const el = document.getElementById('ziel-anzeige');
+  if (!ziel.betrag) {
+    el.innerHTML = '<p class="note">Noch kein Ziel gesetzt – trag oben ein Ziel-Vermögen ein, um Fortschritt und Prognose zu sehen.</p>';
+    return;
+  }
+  if (!vRows.length) {
+    el.innerHTML = '<p class="note">Noch keine Vermögensdaten erfasst.</p>';
+    return;
+  }
+  const current = vRows[vRows.length-1].gesamt;
+  const pct = Math.max(0, Math.min(100, current / ziel.betrag * 100));
+
+  // Durchschnittliches monatliches Wachstum aus echten, aufeinanderfolgenden Monaten (max. letzte 6)
+  const deltas = [];
+  for (let i = 1; i < vRows.length; i++) {
+    deltas.push(vRows[i].gesamt - vRows[i-1].gesamt);
+  }
+  const recentDeltas = deltas.slice(-6);
+  const avgDelta = recentDeltas.length ? recentDeltas.reduce((a,b)=>a+b,0) / recentDeltas.length : 0;
+
+  let prognoseHtml;
+  if (current >= ziel.betrag) {
+    prognoseHtml = `<p class="note" style="color:var(--green); font-weight:bold;">🎉 Ziel bereits erreicht!</p>`;
+  } else if (avgDelta > 0) {
+    const monthsNeeded = Math.ceil((ziel.betrag - current) / avgDelta);
+    const target = new Date();
+    target.setMonth(target.getMonth() + monthsNeeded);
+    const targetLabel = target.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    prognoseHtml = `<p class="note">Bei durchschnittlich ${fmtEUR(avgDelta)}/Monat Zuwachs (Ø letzte ${recentDeltas.length} Monate): Ziel voraussichtlich in ca. <b>${monthsNeeded} Monat${monthsNeeded===1?'':'en'}</b> erreicht (~${targetLabel}).</p>`;
+  } else {
+    prognoseHtml = `<p class="note">Bei aktuellem Trend (Ø ${fmtEUR(avgDelta)}/Monat) ist keine Prognose möglich – das Vermögen wächst im Schnitt nicht.</p>`;
+  }
+
+  el.innerHTML = `
+    <div class="progress-track">
+      <div class="progress-fill" style="width:${pct}%;"></div>
+      <div class="progress-label">${fmtEUR(current)} / ${fmtEUR(ziel.betrag)} (${fmtNum(pct,1)}%)</div>
+    </div>
+    ${prognoseHtml}
+  `;
+}
+
+const ANTEIL_POSITIONS = { ftse: 'ftse', ai: 'ai_bigdata', dbx: 'dbx0an' };
+
+function updateAnteilPreview(key) {
+  const anteile = parseFloat(document.getElementById(`v-${key}-anteile`).value) || 0;
+  const kurs = parseFloat(document.getElementById(`v-${key}-kurs`).value) || 0;
+  const wert = anteile * kurs;
+  document.getElementById(`v-${key}-preview`).textContent = wert > 0 ? fmtEUR(wert) : '–';
+}
+
+function handleAddVermogen(e) {
+  e.preventDefault();
+  const monat = document.getElementById('v-monat').value;
+  if (!monat) return false;
+  const val = id => parseFloat(document.getElementById(id).value) || 0;
+  const entry = { monat, festgeld: val('v-festgeld'), trade_republic: val('v-trade'),
+    targo: val('v-targo'), bargeld: val('v-bargeld'), sparrate: val('v-sparrate') };
+  for (const key of Object.keys(ANTEIL_POSITIONS)) {
+    const field = ANTEIL_POSITIONS[key];
+    const anteile = val(`v-${key}-anteile`);
+    const kurs = val(`v-${key}-kurs`);
+    entry[field] = anteile * kurs;
+    entry[`${field}_anteile`] = anteile > 0 ? anteile : null;
+    entry[`${field}_kurs`] = kurs > 0 ? kurs : null;
+  }
+  const existingIdx = vermogen.findIndex(v => v.monat === monat);
+  if (existingIdx >= 0) {
+    if (!confirm(`Für ${fmtMonthLabel(monat)} existiert schon ein Stand. Überschreiben?`)) return false;
+    vermogen.splice(existingIdx, 1);
+  }
+  vermogen.push(entry);
+  saveVermogen();
+  ['v-ftse-anteile','v-ftse-kurs','v-ai-anteile','v-ai-kurs','v-dbx-anteile','v-dbx-kurs',
+   'v-festgeld','v-trade','v-targo','v-bargeld','v-sparrate'].forEach(id => document.getElementById(id).value = '');
+  ['ftse','ai','dbx'].forEach(k => document.getElementById(`v-${k}-preview`).textContent = '–');
+  renderAll();
+  return false;
+}
+
+function renderAnteileTable(vRows) {
+  const tbody = document.getElementById('anteile-tbody');
+  tbody.innerHTML = [...vRows].reverse().map(r => {
+    const cell = (anteile, kurs) => anteile ? `<td>${fmtNum(anteile,4)}</td><td>${fmtEUR(kurs)}</td>` : '<td>–</td><td>–</td>';
+    return `<tr><td>${fmtMonthLabel(r.monat)}</td>${cell(r.ftse_anteile, r.ftse_kurs)}${cell(r.ai_bigdata_anteile, r.ai_bigdata_kurs)}${cell(r.dbx0an_anteile, r.dbx0an_kurs)}</tr>`;
+  }).join('');
+}
+
+const KURSGEWINN_POSITIONS = ['ftse', 'ai_bigdata', 'dbx0an'];
+
+function computeKursgewinnEinzahlung() {
+  const vRows = [...vermogen].sort((a,b) => a.monat.localeCompare(b.monat));
+  const out = [];
+  for (let i = 1; i < vRows.length; i++) {
+    const prev = vRows[i-1], curr = vRows[i];
+    let einzahlung = 0, kursgewinn = 0, anyData = false;
+    KURSGEWINN_POSITIONS.forEach(pos => {
+      const aPrev = prev[`${pos}_anteile`], kPrev = prev[`${pos}_kurs`];
+      const aCurr = curr[`${pos}_anteile`], kCurr = curr[`${pos}_kurs`];
+      if (aPrev != null && kPrev != null && aCurr != null && kCurr != null) {
+        anyData = true;
+        const deltaAnteile = aCurr - aPrev;
+        einzahlung += deltaAnteile * kCurr;
+        kursgewinn += aPrev * (kCurr - kPrev);
+      }
+    });
+    if (anyData) out.push({ monat: curr.monat, einzahlung, kursgewinn, total: einzahlung + kursgewinn });
+  }
+  return out;
+}
+
+let chartKursgewinn;
+function renderKursgewinn() {
+  const card = document.getElementById('kursgewinn-card');
+  const rows = computeKursgewinnEinzahlung();
+  if (!rows.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const tbody = document.getElementById('kursgewinn-tbody');
+  tbody.innerHTML = [...rows].reverse().map(r =>
+    `<tr><td>${fmtMonthLabel(r.monat)}</td><td>${fmtEUR(r.einzahlung)}</td><td style="color:${r.kursgewinn>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'};">${fmtEUR(r.kursgewinn)}</td><td>${fmtEUR(r.total)}</td></tr>`
+  ).join('');
+
+  if (chartKursgewinn) chartKursgewinn.destroy();
+  chartKursgewinn = new Chart(document.getElementById('chartKursgewinn'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => fmtMonthLabel(r.monat)),
+      datasets: [
+        { label: 'Einzahlung', data: rows.map(r => r.einzahlung), backgroundColor: '#1a3d5c' },
+        { label: 'Kursgewinn/-verlust', data: rows.map(r => r.kursgewinn), backgroundColor: '#22b76a' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+  });
+}
+
+function renderFinKPIs(vRows) {
+  const el = document.getElementById('fin-kpi-row');
+  if (!vRows.length) { el.innerHTML = '<p class="note">Noch keine Vermögensdaten erfasst.</p>'; return; }
+  const last = vRows[vRows.length-1];
+  const prev = vRows.length > 1 ? vRows[vRows.length-2] : null;
+  const delta = prev ? last.gesamt - prev.gesamt : null;
+  const pct = (prev && prev.gesamt > 0) ? (delta/prev.gesamt*100) : null;
+  const badge = delta === null ? '' : (delta >= 0
+    ? `<span style="color:#b7e3c9;">▲ +${fmtEUR(delta)} (+${fmtNum(pct,1)}%)</span>`
+    : `<span style="color:#f3b6b6;">▼ ${fmtEUR(delta)} (${fmtNum(pct,1)}%)</span>`);
+  el.innerHTML = `
+    <div class="kpi"><div class="label">Gesamtvermögen (${fmtMonthLabel(last.monat)})</div><div class="value">${fmtEUR(last.gesamt)}</div><div style="font-size:12px; margin-top:4px;">${badge}</div></div>
+    <div class="kpi"><div class="label">Depot (ETFs)</div><div class="value">${fmtEUR(last.depot)}</div></div>
+    <div class="kpi"><div class="label">Festgeld + Cash</div><div class="value">${fmtEUR(last.festgeld + last.cash)}</div></div>
+    <div class="kpi"><div class="label">Sparrate ${fmtMonthLabel(last.monat)}</div><div class="value">${fmtEUR(last.sparrate)}</div></div>
+  `;
+}
+
+let chartVermogen;
+function renderVermogenChart(vRows) {
+  const labels = vRows.map(r => fmtMonthLabel(r.monat));
+  if (chartVermogen) chartVermogen.destroy();
+  chartVermogen = new Chart(document.getElementById('chartVermogen'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type:'bar', label: 'Depot (ETFs)', data: vRows.map(r=>r.depot), backgroundColor: '#2f7fb8', stack: 's' },
+        { type:'bar', label: 'Festgeld', data: vRows.map(r=>r.festgeld), backgroundColor: '#8fb8d8', stack: 's' },
+        { type:'bar', label: 'Cash', data: vRows.map(r=>r.cash), backgroundColor: '#c9d9e6', stack: 's' },
+        { type:'line', label: 'Gesamtvermögen', data: vRows.map(r=>r.gesamt), borderColor: '#1a8754', backgroundColor: '#1a8754', tension: 0.25 }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, scales: { y: { stacked:false, title:{display:true,text:'€'} }, x: { stacked:true } } }
+  });
+}
+
+function renderVermogenTable(vRows) {
+  const tbody = document.getElementById('vermogen-tbody');
+  tbody.innerHTML = [...vRows].reverse().map((r,i,arr) => {
+    const prev = arr[i+1];
+    const delta = prev ? r.gesamt - prev.gesamt : null;
+    const pct = (prev && prev.gesamt>0) ? (delta/prev.gesamt*100) : null;
+    return `<tr><td>${fmtMonthLabel(r.monat)}</td><td>${fmtEUR(r.depot)}</td><td>${fmtEUR(r.festgeld)}</td><td>${fmtEUR(r.cash)}</td><td>${fmtEUR(r.gesamt)}</td>${deltaCell(delta,pct)}<td>${fmtEUR(r.sparrate)}</td></tr>`;
+  }).join('');
+}
+
+function populateKategorieSelect() {
+  const sel = document.getElementById('k-kategorie-select');
+  if (!sel) return;
+  const prevValue = sel.value;
+  const cats = [...new Set(kosten.map(k => k.kategorie))].sort((a,b) => a.localeCompare(b, 'de'));
+  sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('')
+    + '<option value="__new__">➕ Neue Kategorie…</option>';
+  if (cats.includes(prevValue)) sel.value = prevValue;
+  toggleNewKategorie();
+}
+
+function toggleNewKategorie() {
+  const sel = document.getElementById('k-kategorie-select');
+  const wrap = document.getElementById('k-kategorie-new-wrap');
+  if (!sel || !wrap) return;
+  wrap.style.display = sel.value === '__new__' ? '' : 'none';
+}
+
+function toggleRecurring() {
+  const cb = document.getElementById('k-recurring');
+  const wrap = document.getElementById('k-recurring-wrap');
+  if (!cb || !wrap) return;
+  wrap.style.display = cb.checked ? '' : 'none';
+}
+
+function getSelectedKategorie() {
+  const sel = document.getElementById('k-kategorie-select');
+  if (!sel) return '';
+  if (sel.value === '__new__') {
+    return document.getElementById('k-kategorie-new').value.trim();
+  }
+  return sel.value;
+}
+
+function monthRange(start, end) {
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end.split('-').map(Number);
+  const startIdx = sy * 12 + sm;
+  const endIdx = ey * 12 + em;
+  const out = [];
+  for (let i = startIdx; i <= endIdx; i++) {
+    const y = Math.floor((i - 1) / 12);
+    const m = ((i - 1) % 12) + 1;
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+function resetKostenForm() {
+  document.getElementById('k-kategorie-new').value = '';
+  document.getElementById('k-betrag').value = '';
+  document.getElementById('k-recurring').checked = false;
+  document.getElementById('k-recurring-until').value = '';
+  toggleRecurring();
+}
+
+function handleAddKosten(e) {
+  e.preventDefault();
+  const kategorie = getSelectedKategorie();
+  const monat = document.getElementById('k-monat').value;
+  const betrag = parseFloat(document.getElementById('k-betrag').value);
+  const konto = document.getElementById('k-konto').value;
+  if (!kategorie || !monat || isNaN(betrag)) {
+    alert('Bitte Kategorie, Monat und Betrag ausfüllen.');
+    return false;
+  }
+  const recurring = document.getElementById('k-recurring').checked;
+  const untilMonat = document.getElementById('k-recurring-until').value;
+
+  let months = [monat];
+  if (recurring && untilMonat) {
+    months = monthRange(monat, untilMonat);
+    if (months.length === 0 || untilMonat < monat) {
+      alert('"Wiederholen bis" muss auf oder nach dem Start-Monat liegen.');
+      return false;
+    }
+  }
+
+  const existing = months.filter(m => kosten.some(k => k.kategorie === kategorie && k.monat === m && k.konto === konto));
+  if (existing.length > 0) {
+    const label = existing.map(fmtMonthLabel).join(', ');
+    if (!confirm(`Für ${kategorie} existiert schon ein Eintrag in: ${label}. Überschreiben?`)) return false;
+  }
+
+  months.forEach(m => {
+    const idx = kosten.findIndex(k => k.kategorie === kategorie && k.monat === m && k.konto === konto);
+    if (idx >= 0) kosten.splice(idx, 1);
+    kosten.push({ kategorie, monat: m, betrag, konto });
+  });
+
+  saveKosten();
+  resetKostenForm();
+  populateKategorieSelect();
+  renderAll();
+  return false;
+}
+
+function deleteKosten(idx) {
+  if (!confirm('Diesen Kosten-Eintrag löschen?')) return;
+  kosten.splice(idx, 1);
+  saveKosten();
+  renderAll();
+}
+
+function aggregateKostenByMonth() {
+  const map = {};
+  kosten.forEach(k => {
+    if (!map[k.monat]) map[k.monat] = 0;
+    map[k.monat] += k.betrag;
+  });
+  return map;
+}
+
+let chartKosten;
+function renderKostenChart() {
+  const map = aggregateKostenByMonth();
+  const keys = Object.keys(map).sort();
+  if (chartKosten) chartKosten.destroy();
+  chartKosten = new Chart(document.getElementById('chartKosten'), {
+    type: 'bar',
+    data: { labels: keys.map(fmtMonthLabel), datasets: [{ label: 'Fixkosten gesamt', data: keys.map(k=>map[k]), backgroundColor: '#1F4E78' }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
+
+function renderKostenTable() {
+  const tbody = document.getElementById('kosten-tbody');
+  const sorted = kosten.map((k,idx) => ({...k, idx})).sort((a,b) => b.monat.localeCompare(a.monat) || a.kategorie.localeCompare(b.kategorie));
+  tbody.innerHTML = sorted.map(k => `<tr><td>${fmtMonthLabel(k.monat)}</td><td>${k.kategorie}</td><td>${k.konto}</td><td>${fmtEUR(k.betrag)}</td><td><button class="danger" onclick="deleteKosten(${k.idx})">Löschen</button></td></tr>`).join('');
+}
+
+function nettoUebrigSeries() {
+  const awRows = aggregateMonthly();
+  const kMap = aggregateKostenByMonth();
+  return awRows
+    .filter(r => r.lohn !== null) // nur Monate mit bekanntem Lohn zählen als abgeschlossen
+    .map(r => ({ key: r.key, netto: r.lt - (kMap[r.key] || 0) }))
+    .sort((a,b) => a.key.localeCompare(b.key));
+}
+
+function computeAvgNettoUebrig(months = 6) {
+  const series = nettoUebrigSeries();
+  if (!series.length) return null;
+  const slice = series.slice(-months);
+  const sum = slice.reduce((s,r) => s + r.netto, 0);
+  return sum / slice.length;
+}
+
+function useAvgSparrate() {
+  const avg = computeAvgNettoUebrig(6);
+  if (avg === null) {
+    alert('Noch keine Daten für Einkommen/Fixkosten vorhanden, um einen Durchschnitt zu berechnen.');
+    return;
+  }
+  document.getElementById('wr-rate').value = avg.toFixed(2);
+  const note = document.getElementById('wr-rate-note');
+  note.innerHTML = `Übernommen: Ø ${fmtEUR(avg)}/Monat aus deinem echten Netto übrig der letzten ${Math.min(6, nettoUebrigSeries().length)} Monate. Passe den Wert gern manuell an.`;
+  renderWachstum();
+}
+
+let chartWachstum;
+function renderWachstum() {
+  const vRows = aggregateVermogen();
+  const last = vRows[vRows.length-1];
+  const startEl = document.getElementById('wr-start');
+  const rateEl = document.getElementById('wr-rate');
+  const returnEl = document.getElementById('wr-return');
+  const yearsEl = document.getElementById('wr-years');
+
+  const saved = JSON.parse(localStorage.getItem(STORAGE_WACHSTUM) || '{}');
+  const avgNetto = computeAvgNettoUebrig(6);
+  if (startEl.value === '') startEl.value = saved.start ?? (last ? last.gesamt.toFixed(2) : 0);
+  if (rateEl.value === '') rateEl.value = saved.rate ?? (avgNetto !== null ? avgNetto.toFixed(2) : (last ? last.sparrate : 0));
+  if (returnEl.value === '') returnEl.value = saved.ret ?? 7;
+  if (yearsEl.value === '') yearsEl.value = saved.years ?? 15;
+
+  const start = parseFloat(startEl.value) || 0;
+  const monthlyRate = parseFloat(rateEl.value) || 0;
+  const annualReturn = (parseFloat(returnEl.value) || 0) / 100;
+  const years = parseInt(yearsEl.value, 10) || 15;
+  localStorage.setItem(STORAGE_WACHSTUM, JSON.stringify({ start, rate: monthlyRate, ret: annualReturn*100, years }));
+
+  const monthlyGrowth = Math.pow(1 + annualReturn, 1/12) - 1;
+  let capital = start;
+  const quarters = [];
+  let yearStartCapital = start;
+  const now = new Date();
+  for (let m = 1; m <= years*12; m++) {
+    capital = capital * (1 + monthlyGrowth) + monthlyRate;
+    if (m % 3 === 0) {
+      const future = new Date(now.getFullYear(), now.getMonth() + m, 1);
+      const q = Math.floor(future.getMonth()/3) + 1;
+      const label = `Q${q} ${future.getFullYear().toString().slice(2)}`;
+      quarters.push({ label, capital });
+    }
+    if (m % 12 === 0) {
+      quarters[quarters.length-1].zinsJahr = capital - yearStartCapital - monthlyRate*12;
+      yearStartCapital = capital;
+    }
+  }
+
+  const tbody = document.getElementById('wachstum-tbody');
+  tbody.innerHTML = quarters.map(q => `<tr><td>${q.label}</td><td>${fmtEUR(q.capital)}</td><td>${q.zinsJahr!==undefined ? fmtEUR(q.zinsJahr) : '–'}</td></tr>`).join('');
+
+  if (chartWachstum) chartWachstum.destroy();
+  chartWachstum = new Chart(document.getElementById('chartWachstum'), {
+    type: 'line',
+    data: { labels: quarters.map(q=>q.label), datasets: [{ label: 'Prognose Vermögen', data: quarters.map(q=>q.capital), borderColor: '#1a8754', backgroundColor: '#1a8754', tension: 0.2 }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
+
+function renderGesamtuebersicht() {
+  const awRows = aggregateMonthly(); // Alter Wirt: {key, tg, lohn, lt, ...}
+  const vRows = aggregateVermogen();
+  const kMap = aggregateKostenByMonth();
+  const vByMonth = {};
+  vRows.forEach(r => vByMonth[r.monat] = r);
+  const allKeys = new Set([...awRows.map(r=>r.key), ...Object.keys(kMap), ...vRows.map(r=>r.monat)]);
+  const sortedKeys = [...allKeys].sort();
+
+  const tbody = document.getElementById('gesamt-tbody');
+  tbody.innerHTML = sortedKeys.map((key,i) => {
+    const aw = awRows.find(r => r.key === key);
+    const einkommen = (aw && aw.lohn !== null) ? aw.lt : null; // Lohn unbekannt -> Einkommen/Sparquote nicht belastbar
+    const fixkosten = kMap[key] || 0;
+    const nettoUebrig = einkommen !== null ? einkommen - fixkosten : null;
+    const sparquote = (einkommen !== null && einkommen > 0) ? (nettoUebrig / einkommen * 100) : null;
+    const v = vByMonth[key];
+    const vPrevKey = sortedKeys[i-1];
+    const vPrev = vPrevKey ? vByMonth[vPrevKey] : null;
+    const deltaV = (v && vPrev) ? v.gesamt - vPrev.gesamt : null;
+    const sparquoteCell = sparquote !== null
+      ? `<span style="color:${sparquote>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'}; font-weight:600;">${fmtNum(sparquote,1)}%</span>`
+      : '–';
+    return `<tr><td>${fmtMonthLabel(key)}</td><td>${einkommen!==null?fmtEUR(einkommen):'–'}</td><td>${fmtEUR(fixkosten)}</td><td>${nettoUebrig!==null?fmtEUR(nettoUebrig):'–'}</td><td>${sparquoteCell}</td><td>${v?fmtEUR(v.gesamt):'–'}</td><td>${deltaV!==null?fmtEUR(deltaV):'–'}</td></tr>`;
+  }).join('');
+
+  const summaryEl = document.getElementById('gesamt-sparquote-summary');
+  if (summaryEl) {
+    const sparquoten = sortedKeys.map(key => {
+      const aw = awRows.find(r => r.key === key);
+      const einkommen = (aw && aw.lohn !== null) ? aw.lt : null;
+      if (einkommen === null || einkommen <= 0) return null;
+      const fixkosten = kMap[key] || 0;
+      return (einkommen - fixkosten) / einkommen * 100;
+    }).filter(v => v !== null).slice(-6);
+    if (sparquoten.length > 0) {
+      const avg = sparquoten.reduce((a,b)=>a+b,0) / sparquoten.length;
+      summaryEl.textContent = `Ø Sparquote (letzte ${sparquoten.length} Monate mit Daten): ${fmtNum(avg,1)}%`;
+    } else {
+      summaryEl.textContent = '';
+    }
+  }
+}
+
+function populateJahresrueckblickYearSelect() {
+  const sel = document.getElementById('jr-year-select');
+  if (!sel) return;
+  const years = new Set();
+  aggregateMonthly().forEach(r => years.add(r.key.slice(0,4)));
+  Object.keys(aggregateKostenByMonth()).forEach(k => years.add(k.slice(0,4)));
+  vermogen.forEach(v => years.add(v.monat.slice(0,4)));
+  const sorted = [...years].sort();
+  const prevValue = sel.value;
+  sel.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (sorted.includes(prevValue)) sel.value = prevValue;
+  else if (sorted.length) sel.value = sorted[sorted.length-1];
+}
+
+function renderJahresrueckblick() {
+  const sel = document.getElementById('jr-year-select');
+  const noteEl = document.getElementById('jr-created-note');
+  const contentEl = document.getElementById('jr-content');
+  if (!sel || !contentEl) return;
+  if (noteEl) noteEl.textContent = `Erstellt am ${new Date().toLocaleDateString('de-DE')}`;
+  const year = sel.value;
+  if (!year) { contentEl.innerHTML = '<p class="note">Noch keine Daten vorhanden.</p>'; return; }
+
+  const monthlyAll = aggregateMonthly();
+  const monthly = monthlyAll.filter(r => r.key.startsWith(year));
+  const std = monthly.reduce((a,r) => a + r.std, 0);
+  const tg = monthly.reduce((a,r) => a + r.tg, 0);
+  const monthlyWithLohn = monthly.filter(r => r.lohn !== null); // nur Monate mit erfasstem Lohn zählen als "abgeschlossen"
+  const lohn = monthlyWithLohn.reduce((a,r) => a + r.lohn, 0);
+  const lt = lohn + tg; // Gesamt-Lohn+TG fürs Jahr (Trinkgeld auch aus Monaten ohne Lohn-Eintrag)
+
+  const kMap = aggregateKostenByMonth();
+  const fixkosten = Object.keys(kMap).filter(k => k.startsWith(year)).reduce((a,k) => a + kMap[k], 0);
+
+  // Für Netto übrig/Sparquote nur Monate mit bekanntem Lohn verwenden, damit Zähler & Nenner konsistent sind
+  const ltKnown = lohn + monthlyWithLohn.reduce((a,r) => a + r.tg, 0);
+  const fixkostenKnown = monthlyWithLohn.reduce((a,r) => a + (kMap[r.key] || 0), 0);
+  const nettoUebrig = monthlyWithLohn.length ? (ltKnown - fixkostenKnown) : null;
+  const sparquote = (nettoUebrig !== null && ltKnown > 0) ? (nettoUebrig / ltKnown * 100) : null;
+  const basisNote = monthly.length
+    ? `Netto übrig & Sparquote: Basis ${monthlyWithLohn.length} von ${monthly.length} Monaten mit erfasstem Lohn.`
+    : '';
+  const currentYear = new Date().getFullYear();
+  const isIncomplete = Number(year) === currentYear && monthly.length < 12;
+
+  const vRowsYear = aggregateVermogen().filter(v => v.monat.startsWith(year));
+  const vEnd = vRowsYear.length ? vRowsYear[vRowsYear.length-1] : null;
+  const vStart = vRowsYear.length ? vRowsYear[0] : null;
+  const vDelta = (vStart && vEnd) ? vEnd.gesamt - vStart.gesamt : null;
+
+  const prevYear = String(Number(year) - 1);
+  const prevMonthly = monthlyAll.filter(r => r.key.startsWith(prevYear));
+  const prevHasData = prevMonthly.length > 0;
+  const prevLt = prevMonthly.filter(r => r.lohn !== null).reduce((a,r) => a + r.lohn, 0) + prevMonthly.reduce((a,r) => a + r.tg, 0);
+  const ltDelta = prevHasData ? (lt - prevLt) : null;
+  const ltDeltaPct = (prevHasData && prevLt > 0) ? (ltDelta / prevLt * 100) : null;
+  const vorjahrNote = prevHasData
+    ? `<div class="note" style="margin-top:2px; color:${ltDelta>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'};">${ltDelta>=0?'+':''}${fmtEUR(ltDelta)}${ltDeltaPct!==null?` (${fmtNum(ltDeltaPct,1)}%)`:''} ggü. ${prevYear}${isIncomplete?' (unvollständiges Jahr)':''}</div>`
+    : '';
+
+  contentEl.innerHTML = `
+    ${isIncomplete ? `<p class="note" style="font-weight:600;">⚠︎ ${year} ist noch nicht abgeschlossen (bisher ${monthly.length} von 12 Monaten) – Zahlen sind ein Zwischenstand.</p>` : ''}
+    <div class="grid grid-4">
+      <div class="kpi"><div class="label">Stunden ${year}</div><div class="value">${fmtNum(std,1)}</div></div>
+      <div class="kpi"><div class="label">Trinkgeld ${year}</div><div class="value">${fmtEUR(tg)}</div></div>
+      <div class="kpi"><div class="label">Lohn+TG gesamt ${year}</div><div class="value">${fmtEUR(lt)}</div>${vorjahrNote}</div>
+      <div class="kpi"><div class="label">Fixkosten ${year}</div><div class="value">${fmtEUR(fixkosten)}</div></div>
+    </div>
+    <div class="grid grid-4" style="margin-top:14px;">
+      <div class="kpi"><div class="label">Netto übrig ${year}</div><div class="value">${nettoUebrig!==null?fmtEUR(nettoUebrig):'–'}</div></div>
+      <div class="kpi"><div class="label">Ø Sparquote ${year}</div><div class="value">${sparquote!==null?fmtNum(sparquote,1)+'%':'–'}</div></div>
+      <div class="kpi"><div class="label">Vermögen Jahresende</div><div class="value">${vEnd?fmtEUR(vEnd.gesamt):'–'}</div></div>
+      <div class="kpi"><div class="label">Δ Vermögen im Jahr</div><div class="value">${vDelta!==null?fmtEUR(vDelta):'–'}</div></div>
+    </div>
+    ${basisNote ? `<p class="note" style="margin-top:10px;">${basisNote}</p>` : ''}
+  `;
+}
+
+function printJahresrueckblick() {
+  const wasArbeit = document.getElementById('tab-arbeit').style.display !== 'none';
+  if (wasArbeit) switchTab('finanzen');
+  document.body.classList.add('jr-print-mode');
+  window.print();
+  document.body.classList.remove('jr-print-mode');
+  if (wasArbeit) switchTab('arbeit');
+}
+
+function finRenderAll() {
+  const vRows = aggregateVermogen();
+  renderFinKPIs(vRows);
+  renderZielTracker(vRows);
+  renderVermogenChart(vRows);
+  renderVermogenTable(vRows);
+  renderAnteileTable(vRows);
+  renderKursgewinn();
+  populateKategorieSelect();
+  renderKostenChart();
+  renderKostenTable();
+  renderWachstum();
+  renderGesamtuebersicht();
+  populateJahresrueckblickYearSelect();
+  renderJahresrueckblick();
+}
+
+function renderAll() {
+  const monthlyRows = aggregateMonthly();
+  populateKpiMonthSelect();
+  renderKPIs(monthlyRows);
+  renderMonthlyTable(monthlyRows);
+  renderCharts(monthlyRows);
+  renderComparison();
+  populateMonthFilter();
+  renderDailyTable();
+  finRenderAll();
+}
+
+function buildBackupData() {
+  return { daily, lohn, vermogen, kosten, ziel, exportedAt: new Date().toISOString() };
+}
+
+function applyBackupData(data, { confirmPrompt = true } = {}) {
+  if (!data || !Array.isArray(data.daily)) {
+    return { ok: false, error: 'Diese Daten sehen nicht wie ein Alter-Wirt-Backup aus (Feld "daily" fehlt).' };
+  }
+  const anzahlTage = data.daily.length;
+  const anzahlMonate = data.lohn ? Object.keys(data.lohn).length : 0;
+  if (confirmPrompt) {
+    let proceed = true;
+    try {
+      proceed = confirm(`Daten gefunden: ${anzahlTage} Tageseinträge, ${anzahlMonate} Monate mit Lohn.\n\nAktuelle Daten in diesem Browser werden überschrieben. Fortfahren?`);
+    } catch (e) { proceed = true; }
+    if (!proceed) return { ok: false, cancelled: true };
+  }
+  daily = data.daily || [];
+  lohn = data.lohn || {};
+  vermogen = data.vermogen || vermogen;
+  kosten = data.kosten || kosten;
+  ziel = data.ziel || ziel;
+  saveDaily(); saveLohn(); saveVermogen(); saveKosten(); saveZiel();
+  if (ziel.betrag) document.getElementById('ziel-betrag').value = ziel.betrag;
+  renderAll();
+  return { ok: true, anzahlTage, anzahlMonate };
+}
+
+function exportBackup() {
+  const data = buildBackupData();
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `alter_wirt_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) {
+    alert('Keine Datei ausgewählt.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => alert('Die Datei konnte nicht gelesen werden (Lesefehler).');
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (err) {
+      alert('Das ist keine gültige Backup-Datei (kein lesbares JSON).\n\nFehler: ' + err.message);
+      event.target.value = '';
+      return;
+    }
+    const result = applyBackupData(data);
+    if (!result.ok) {
+      if (!result.cancelled) alert(result.error);
+      event.target.value = '';
+      return;
+    }
+    const anzahlTage = result.anzahlTage;
+    alert(`Backup importiert: ${daily.length} Tageseinträge geladen.`);
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function getSyncUrl() {
+  return (localStorage.getItem(STORAGE_SYNC_URL) || '').trim();
+}
+
+function setSyncStatus(msg) {
+  const el = document.getElementById('sync-last-status');
+  if (el) el.textContent = msg;
+}
+
+function saveSyncUrl() {
+  const input = document.getElementById('sync-url');
+  const url = input.value.trim();
+  if (!url) {
+    alert('Bitte zuerst die Web-App-URL aus Google Apps Script eintragen.');
+    return;
+  }
+  localStorage.setItem(STORAGE_SYNC_URL, url);
+  updateSyncUrlStatus();
+  alert('URL gespeichert – gilt nur für dieses Gerät/diesen Browser. Auf dem anderen Gerät (z.B. Handy) musst du dieselbe URL einmalig ebenfalls eintragen.');
+}
+
+function updateSyncUrlStatus() {
+  const url = getSyncUrl();
+  const statusEl = document.getElementById('sync-url-status');
+  const input = document.getElementById('sync-url');
+  if (input && url) input.value = url;
+  if (statusEl) statusEl.textContent = url ? '✓ URL auf diesem Gerät hinterlegt.' : '⚠︎ Noch keine URL hinterlegt.';
+  const last = localStorage.getItem(STORAGE_SYNC_LAST);
+  if (last) setSyncStatus(`Letzter Sync auf diesem Gerät: ${new Date(last).toLocaleString('de-DE')}`);
+}
+
+async function syncUpload() {
+  const url = getSyncUrl();
+  if (!url) { alert('Bitte zuerst die Web-App-URL eintragen und speichern.'); return; }
+  setSyncStatus('Lade hoch …');
+  try {
+    const data = buildBackupData();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // vermeidet CORS-Preflight bei Apps Script
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Server antwortete mit Status ' + res.status);
+    localStorage.setItem(STORAGE_SYNC_LAST, new Date().toISOString());
+    setSyncStatus(`✓ Hochgeladen am ${new Date().toLocaleString('de-DE')} (${data.daily.length} Tageseinträge).`);
+  } catch (err) {
+    setSyncStatus('');
+    alert('Hochladen fehlgeschlagen: ' + err.message + '\n\nPrüfe die URL und deine Internetverbindung.');
+  }
+}
+
+async function syncDownload() {
+  const url = getSyncUrl();
+  if (!url) { alert('Bitte zuerst die Web-App-URL eintragen und speichern.'); return; }
+  setSyncStatus('Lade herunter …');
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    if (!res.ok) throw new Error('Server antwortete mit Status ' + res.status);
+    const data = await res.json();
+    const result = applyBackupData(data);
+    if (!result.ok) {
+      setSyncStatus('');
+      if (!result.cancelled) alert(result.error);
+      return;
+    }
+    localStorage.setItem(STORAGE_SYNC_LAST, new Date().toISOString());
+    setSyncStatus(`✓ Heruntergeladen am ${new Date().toLocaleString('de-DE')} (${result.anzahlTage} Tageseinträge).`);
+  } catch (err) {
+    setSyncStatus('');
+    alert('Herunterladen fehlgeschlagen: ' + err.message + '\n\nPrüfe die URL und deine Internetverbindung.');
+  }
+}
+
+document.getElementById('filter-month').addEventListener('change', renderDailyTable);
+document.getElementById('kpi-month-select').addEventListener('change', () => renderKPIs(aggregateMonthly()));
+document.getElementById('in-date').value = new Date().toISOString().slice(0,10);
+populateCompareMonthSelect();
+document.getElementById('btn-mode-ytd').classList.add('active-mode');
+document.getElementById('print-header').innerHTML = `<h1>Alter Wirt – Monats- & Jahresübersicht</h1><p>Erstellt am ${new Date().toLocaleDateString('de-DE')}</p>`;
+document.getElementById('v-monat').value = new Date().toISOString().slice(0,7);
+document.getElementById('k-monat').value = new Date().toISOString().slice(0,7);
+if (ziel.betrag) document.getElementById('ziel-betrag').value = ziel.betrag;
+updateSyncUrlStatus();
+
+renderAll();
+</script>
+</body>
+</html>
