@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alter Wirt – Stunden & Trinkgeld</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --navy: #1F4E78;
+    --navy-dark: #163a59;
+    --bg: #f7f9fb;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a2733;
+    --muted: #6b7c8c;
+    --green: #1a8754;
+    --red: #c0392b;
+    --accent: #2f7fb8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+    font-family: Arial, "Helvetica Neue", sans-serif; font-size: 14px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px 0; color: var(--navy); }
+  h2 { font-size: 16px; margin: 0 0 12px 0; color: var(--navy); }
+  .subtitle { color: var(--muted); margin: 0 0 20px 0; font-size: 13px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    padding: 10px 18px; border: none; background: none; cursor: pointer;
+    font-size: 14px; font-weight: bold; color: var(--muted); border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+  }
+  .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .tab-btn:disabled { cursor: default; opacity: 0.55; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .grid { display: grid; gap: 18px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
+  .kpi { background: linear-gradient(135deg, var(--navy), var(--navy-dark)); color: #fff; border-radius: 10px; padding: 16px 18px; }
+  .kpi .label { font-size: 11.5px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.03em; }
+  .kpi .value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+  form.entry-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: bold; }
+  input[type=date], input[type=number], input[type=text] {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; width: 140px;
+    font-family: inherit;
+  }
+  button {
+    background: var(--navy); color: #fff; border: none; border-radius: 6px; padding: 9px 16px;
+    font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: var(--navy-dark); }
+  button.secondary { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  button.secondary.active-mode { background: var(--navy); color: #fff; }
+  button.danger { background: #fff; color: var(--red); border: 1px solid var(--red); padding: 4px 9px; font-size: 12px; }
+  .preview { font-size: 12.5px; color: var(--muted); background: #eef4f9; border-radius: 6px; padding: 8px 12px; }
+  .preview b { color: var(--navy); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #f0f4f8; color: var(--navy); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; position: sticky; top: 0; }
+  tr:hover td { background: #fafcfe; }
+  tr.year-total td { background: #eef4f9; font-weight: bold; }
+  .scroll-box { max-height: 420px; overflow-y: auto; border-radius: 8px; }
+  .lohn-input { width: 90px; text-align: right; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
+  .lohn-input.missing { border-color: #e0b23c; background: #fffaef; }
+  .chart-wrap { position: relative; height: 280px; }
+  .toolbar { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+  .badge.ok { background: #e3f6ec; color: var(--green); }
+  .badge.warn { background: #fdf0e0; color: #b06a19; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .placeholder { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .progress-track { width: 100%; background: #eef1f5; border-radius: 8px; height: 22px; overflow: hidden; position: relative; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #1a8754, #22b76a); border-radius: 8px 0 0 8px; transition: width 0.4s ease; }
+  .progress-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: var(--navy); }
+  .placeholder h2 { color: var(--muted); }
+  select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: inherit; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  @media print {
+    body { padding: 8px; background: #fff; }
+    .no-print { display: none !important; }
+    #print-header { display: block !important; margin-bottom: 14px; }
+    #print-header h1 { margin: 0 0 2px 0; }
+    #print-header p { margin: 0; color: var(--muted); font-size: 12px; }
+    .card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 12px; }
+    .scroll-box { max-height: none !important; overflow: visible !important; }
+    .kpi { background: #1F4E78 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table { font-size: 11px; }
+  }
+  body.jr-print-mode .tabs,
+  body.jr-print-mode #app-header,
+  body.jr-print-mode #print-header,
+  body.jr-print-mode #tab-arbeit,
+  body.jr-print-mode #tab-finanzen > *:not(#jahresrueckblick-card) { display: none !important; }
+  body.jr-print-mode #tab-finanzen { display: block !important; }
+</style>
+</head>
+<body>
+
+<div id="app-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+  <div>
+    <h1>Alter Wirt</h1>
+    <p class="subtitle">Stunden & Trinkgeld Tracker – lokal gespeichert in diesem Browser</p>
+  </div>
+  <button class="secondary no-print" onclick="window.print()">PDF exportieren</button>
+</div>
+
+<div id="print-header" style="display:none;"></div>
+
+<div class="tabs no-print">
+  <button class="tab-btn active" data-tab="arbeit" onclick="switchTab('arbeit')">Arbeit & Trinkgeld</button>
+  <button class="tab-btn" data-tab="finanzen" onclick="switchTab('finanzen')">Finanzen & Trading</button>
+</div>
+
+<div class="card no-print" id="sync-card">
+  <h2>🔄 Sync (Handy ↔ Rechner)</h2>
+  <p class="note">Verbindet dieses Gerät mit deiner Google-Sheets-Sync-Adresse. Einmal pro Gerät einrichten, danach einfach vor/nach der Nutzung hoch- bzw. runterladen. <span id="sync-url-status"></span></p>
+  <div class="entry-form" style="align-items:flex-end;">
+    <div class="field" style="flex:1; min-width:260px;"><label for="sync-url">Web-App-URL (aus Google Apps Script)</label><input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <button type="button" class="secondary" onclick="saveSyncUrl()">URL speichern</button>
+  </div>
+  <div class="entry-form" style="margin-top:6px;">
+    <button type="button" onclick="syncUpload()">🔼 Hochladen (dieses Gerät → Sheet)</button>
+    <button type="button" onclick="syncDownload()">🔽 Herunterladen (Sheet → dieses Gerät)</button>
+  </div>
+  <p class="note" id="sync-last-status" style="margin-top:8px;"></p>
+</div>
+
+<div id="tab-arbeit">
+
+  <div class="card no-print" style="display:flex; align-items:center; gap:10px; padding:12px 18px;">
+    <label for="kpi-month-select" style="font-weight:bold; color:var(--navy); font-size:13px;">Überblick für Monat:</label>
+    <select id="kpi-month-select"></select>
+  </div>
+
+  <div class="grid grid-4" id="kpi-row"></div>
+
+  <div class="card no-print">
+    <h2>Neuer Eintrag</h2>
+    <form class="entry-form" onsubmit="return handleAddEntry(event)">
+      <div class="field">
+        <label for="in-date">Datum</label>
+        <input type="date" id="in-date" required>
+      </div>
+      <div class="field">
+        <label for="in-std">Stunden (netto)</label>
+        <input type="number" id="in-std" step="0.25" min="0" max="20" placeholder="z.B. 7,5" required>
+      </div>
+      <div class="field">
+        <label for="in-tg">Trinkgeld (€)</label>
+        <input type="number" id="in-tg" step="0.1" min="0" placeholder="z.B. 95.50" required>
+      </div>
+      <button type="submit">Eintrag speichern</button>
+    </form>
+    <p class="note">Trag hier die Nettostunden ein (Pause schon abgezogen) – wird 1:1 übernommen, keine automatische Berechnung mehr.</p>
+  </div>
+
+  <div class="card">
+    <h2>Vergleich</h2>
+    <div class="toolbar no-print" style="justify-content:flex-start;">
+      <button id="btn-mode-ytd" class="secondary" onclick="setCompareMode('ytd')">Jahr bisher vs. Vorjahre</button>
+      <button id="btn-mode-month" class="secondary" onclick="setCompareMode('month')">Monat vs. Vorjahre</button>
+      <select id="compare-month-select" style="display:none;"></select>
+    </div>
+    <p class="preview" id="compare-headline"></p>
+    <div class="scroll-box">
+      <table>
+        <thead id="compare-thead"></thead>
+        <tbody id="compare-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Jahresvergleich</h2>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chartYearly"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Monatsübersicht</h2>
+    <p class="note">Lohn trägst du einmal pro Monat ein (vom Lohnzettel) – gelb markiert heißt: noch offen.</p>
+    <div class="scroll-box">
+      <table id="monthly-table">
+        <thead>
+          <tr><th>Monat</th><th>Std (netto)</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>€/Std TG</th><th>€/Std Lohn</th><th>€/Std Gesamt</th></tr>
+        </thead>
+        <tbody id="monthly-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Tageseinträge</h2>
+    <div class="toolbar">
+      <select id="filter-month"></select>
+      <button class="secondary" onclick="exportBackup()">Backup exportieren</button>
+      <button class="secondary" onclick="document.getElementById('import-file').click()">Backup importieren</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(event)">
+    </div>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Datum</th><th>Std brutto (histor.)</th><th>Std netto</th><th>Trinkgeld</th><th>€/Std</th><th></th></tr></thead>
+        <tbody id="daily-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="tab-finanzen" style="display:none;">
+
+  <div class="grid grid-4" id="fin-kpi-row"></div>
+
+  <div class="card">
+    <h2>Ziel-Tracker</h2>
+    <form class="entry-form no-print" onsubmit="return handleSetZiel(event)">
+      <div class="field"><label for="ziel-betrag">Ziel-Vermögen €</label><input type="number" id="ziel-betrag" step="100" min="0" placeholder="z.B. 50000"></div>
+      <button type="submit">Ziel speichern</button>
+    </form>
+    <div id="ziel-anzeige"></div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Neuer Monatsstand (Depot & Konten)</h2>
+    <form class="entry-form" onsubmit="return handleAddVermogen(event)" style="flex-direction:column; align-items:stretch;">
+      <div class="entry-form" style="align-items:flex-end; margin-bottom:4px;">
+        <div class="field"><label for="v-monat">Monat</label><input type="month" id="v-monat" required></div>
+      </div>
+
+      <p class="note" style="margin-top:0;">Depot-Positionen: Anteile × Kurs (aus deiner Broker-App ablesbar) – so zählt nur, was du wirklich dazukaufst, nicht die tägliche Kursschwankung.</p>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-ftse-anteile">FTSE Anteile</label><input type="number" id="v-ftse-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('ftse')"></div>
+        <div class="field"><label for="v-ftse-kurs">FTSE Kurs €</label><input type="number" id="v-ftse-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('ftse')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-ftse-preview" style="width:120px;">–</div></div>
+      </div>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-ai-anteile">AI & Big Data Anteile</label><input type="number" id="v-ai-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('ai')"></div>
+        <div class="field"><label for="v-ai-kurs">AI & Big Data Kurs €</label><input type="number" id="v-ai-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('ai')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-ai-preview" style="width:120px;">–</div></div>
+      </div>
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-dbx-anteile">DBX0AN Anteile</label><input type="number" id="v-dbx-anteile" step="0.0001" min="0" placeholder="0" oninput="updateAnteilPreview('dbx')"></div>
+        <div class="field"><label for="v-dbx-kurs">DBX0AN Kurs €</label><input type="number" id="v-dbx-kurs" step="0.01" min="0" placeholder="0,00" oninput="updateAnteilPreview('dbx')"></div>
+        <div class="field"><label>= Wert</label><div class="preview" id="v-dbx-preview" style="width:120px;">–</div></div>
+      </div>
+      <p class="note">Keine Anteile zur Hand? Einfach Anteile = 1 und Kurs = Gesamtwert eintragen – funktioniert genauso.</p>
+
+      <div class="entry-form" style="align-items:flex-end;">
+        <div class="field"><label for="v-festgeld">Festgeld €</label><input type="number" id="v-festgeld" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-trade">Trade Republic €</label><input type="number" id="v-trade" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-targo">Targo €</label><input type="number" id="v-targo" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-bargeld">Bargeld €</label><input type="number" id="v-bargeld" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label for="v-sparrate">Sparrate €</label><input type="number" id="v-sparrate" step="0.01" min="0" placeholder="0,00"></div>
+        <button type="submit">Monatsstand speichern</button>
+      </div>
+    </form>
+    <p class="note">Lässt du ein Feld leer, wird 0 angenommen. Existiert der Monat schon, wird er überschrieben (mit Rückfrage).</p>
+  </div>
+
+  <div class="card">
+    <h2>Vermögensentwicklung</h2>
+    <div class="chart-wrap"><canvas id="chartVermogen"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Vermögen – Monatsdetails</h2>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Depot (ETFs)</th><th>Festgeld</th><th>Cash</th><th>Gesamt</th><th>Δ ggü. Vormonat</th><th>Sparrate</th></tr></thead>
+        <tbody id="vermogen-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Anteile-Tracking</h2>
+    <p class="note">Zeigt, wie viele Anteile du hältst und zu welchem Kurs – Zuwachs hier kommt nur von echten Käufen, nicht von Kursschwankung. Nur für Monate mit Anteile-Eingabe verfügbar.</p>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>FTSE Anteile</th><th>FTSE Kurs</th><th>AI Anteile</th><th>AI Kurs</th><th>DBX Anteile</th><th>DBX Kurs</th></tr></thead>
+        <tbody id="anteile-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="kursgewinn-card" style="display:none;">
+    <h2>Kursgewinn vs. Einzahlung</h2>
+    <p class="note">Trennt den monatlichen Depot-Zuwachs in das, was du selbst eingezahlt hast (neue Anteile gekauft), und das, was der Markt dazu beigetragen hat (Kursänderung deiner bestehenden Anteile). Nur für Monate mit vollständigen Anteile-Daten im Vor- und Folgemonat.</p>
+    <div class="chart-wrap"><canvas id="chartKursgewinn"></canvas></div>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Einzahlung (Anteile-Kauf)</th><th>Kursgewinn/-verlust</th><th>Gesamt-Δ Depot</th></tr></thead>
+        <tbody id="kursgewinn-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Neue Fixkosten</h2>
+    <form class="entry-form" onsubmit="return handleAddKosten(event)">
+      <div class="field">
+        <label for="k-kategorie-select">Kategorie</label>
+        <select id="k-kategorie-select" onchange="toggleNewKategorie()"></select>
+      </div>
+      <div class="field" id="k-kategorie-new-wrap" style="display:none;">
+        <label for="k-kategorie-new">Neue Kategorie</label>
+        <input type="text" id="k-kategorie-new" placeholder="z.B. Miete">
+      </div>
+      <div class="field"><label for="k-monat">Monat (ab)</label><input type="month" id="k-monat" required></div>
+      <div class="field"><label for="k-betrag">Betrag €</label><input type="number" id="k-betrag" step="0.01" min="0" placeholder="0,00" required></div>
+      <div class="field">
+        <label for="k-konto">Konto</label>
+        <select id="k-konto"><option>Targo</option><option>Trade Republic</option></select>
+      </div>
+      <div class="field" style="flex-basis:100%;">
+        <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="k-recurring" onchange="toggleRecurring()" style="width:auto;"> Wiederkehrend – gleicher Betrag auch für folgende Monate übernehmen
+        </label>
+      </div>
+      <div class="field" id="k-recurring-wrap" style="display:none;">
+        <label for="k-recurring-until">Wiederholen bis (Monat)</label>
+        <input type="month" id="k-recurring-until">
+      </div>
+      <button type="submit">Kosten speichern</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Fixkosten pro Monat</h2>
+    <div class="chart-wrap" style="height:220px;"><canvas id="chartKosten"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Fixkosten – Details</h2>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Kategorie</th><th>Konto</th><th>Betrag</th><th></th></tr></thead>
+        <tbody id="kosten-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Wachstums-Rechner – Annahmen</h2>
+    <div class="entry-form" style="align-items:flex-end;">
+      <div class="field"><label for="wr-start">Start-Kapital €</label><input type="number" id="wr-start" step="0.01" min="0"></div>
+      <div class="field">
+        <label for="wr-rate">Sparrate €/Monat</label>
+        <input type="number" id="wr-rate" step="0.01" min="0">
+      </div>
+      <button type="button" class="secondary" onclick="useAvgSparrate()">Ø Netto übrig übernehmen</button>
+      <div class="field"><label for="wr-return">Rendite p.a. %</label><input type="number" id="wr-return" step="0.1" min="0"></div>
+      <div class="field"><label for="wr-years">Zeitraum (Jahre)</label><input type="number" id="wr-years" step="1" min="1" max="40"></div>
+      <button type="button" onclick="renderWachstum()">Neu berechnen</button>
+    </div>
+    <p class="note" id="wr-rate-note">Deine Sparrate schwankt je nach Monat – nimm einen festen Wert an oder übernimm den Durchschnitt deines echten Netto übrig (Einkommen minus Fixkosten) aus der Gesamtübersicht unten. Reine Prognose, keine Garantie.</p>
+  </div>
+
+  <div class="card">
+    <h2>Wachstums-Prognose</h2>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chartWachstum"></canvas></div>
+    <div class="scroll-box" style="margin-top:10px;">
+      <table>
+        <thead><tr><th>Quartal</th><th>Prognose Vermögen</th><th>davon Zinseszins (Jahr)</th></tr></thead>
+        <tbody id="wachstum-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Gesamtübersicht (Alter Wirt + Finanzen)</h2>
+    <p class="note">Einkommen aus dem Arbeit-Tab, Fixkosten von hier, Vermögen aus dem Depot-Tracking – alles auf einen Blick.</p>
+    <p class="note" id="gesamt-sparquote-summary" style="font-weight:600;"></p>
+    <div class="scroll-box">
+      <table>
+        <thead><tr><th>Monat</th><th>Einkommen (Lohn+TG)</th><th>Fixkosten</th><th>Netto übrig</th><th>Sparquote</th><th>Gesamtvermögen</th><th>Δ Vermögen</th></tr></thead>
+        <tbody id="gesamt-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="jahresrueckblick-card">
+    <div class="no-print" style="display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;">
+      <div class="field"><label for="jr-year-select">Jahr</label><select id="jr-year-select" onchange="renderJahresrueckblick()"></select></div>
+      <button type="button" onclick="printJahresrueckblick()">Jahresrückblick als PDF exportieren</button>
+    </div>
+    <h2 style="margin-top:14px;">Jahresrückblick</h2>
+    <p class="note" id="jr-created-note"></p>
+    <div id="jr-content"></div>
+  </div>
+
+</div>
+
+<script>
+const SEED_DAILY = []; // [date, stundenBrutto|null, arbeitstundenSeed|null, trinkgeld|null] -- leer für öffentliches Hosting, echte Daten per Backup-Import einspielen
+const SEED_LOHN = {};   // {"YYYY-MM": lohn} -- leer für öffentliches Hosting
+
+const SEED_VERMOGEN = []; // leer für öffentliches Hosting
+
+const SEED_KOSTEN = []; // leer für öffentliches Hosting
+
+const STORAGE_DAILY = 'aw_daily_v1';
+const STORAGE_LOHN = 'aw_lohn_v1';
+const STORAGE_VERMOGEN = 'fin_vermogen_v1';
+const STORAGE_KOSTEN = 'fin_kosten_v1';
+const STORAGE_WACHSTUM = 'fin_wachstum_v1';
+const STORAGE_ZIEL = 'fin_ziel_v1';
+const STORAGE_SYNC_URL = 'aw_sync_url_v1';
+const STORAGE_SYNC_LAST = 'aw_sync_last_v1';
+
+const MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function loadDaily() {
+  const raw = localStorage.getItem(STORAGE_DAILY);
+  if (raw) return JSON.parse(raw);
+  const seeded = SEED_DAILY.map(r => ({
+    date: r[0],
+    brutto: r[1],
+    netto: r[2], // historische Nettostunden 1:1 übernommen (Pausenregel hat sich 2023 zwischenzeitlich geändert)
+    trinkgeld: r[3]
+  }));
+  localStorage.setItem(STORAGE_DAILY, JSON.stringify(seeded));
+  return seeded;
+}
+
+function loadLohn() {
+  const raw = localStorage.getItem(STORAGE_LOHN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_LOHN, JSON.stringify(SEED_LOHN));
+  return {...SEED_LOHN};
+}
+
+function loadVermogen() {
+  const raw = localStorage.getItem(STORAGE_VERMOGEN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_VERMOGEN, JSON.stringify(SEED_VERMOGEN));
+  return SEED_VERMOGEN.map(r => ({...r}));
+}
+
+function loadKosten() {
+  const raw = localStorage.getItem(STORAGE_KOSTEN);
+  if (raw) return JSON.parse(raw);
+  localStorage.setItem(STORAGE_KOSTEN, JSON.stringify(SEED_KOSTEN));
+  return SEED_KOSTEN.map(r => ({...r}));
+}
+
+let daily = loadDaily();
+let lohn = loadLohn();
+let vermogen = loadVermogen();
+let kosten = loadKosten();
+
+function saveDaily() { localStorage.setItem(STORAGE_DAILY, JSON.stringify(daily)); }
+function saveLohn() { localStorage.setItem(STORAGE_LOHN, JSON.stringify(lohn)); }
+function saveVermogen() { localStorage.setItem(STORAGE_VERMOGEN, JSON.stringify(vermogen)); }
+function saveKosten() { localStorage.setItem(STORAGE_KOSTEN, JSON.stringify(kosten)); }
+
+function loadZiel() {
+  const raw = localStorage.getItem(STORAGE_ZIEL);
+  return raw ? JSON.parse(raw) : { betrag: null };
+}
+function saveZiel() { localStorage.setItem(STORAGE_ZIEL, JSON.stringify(ziel)); }
+let ziel = loadZiel();
+
+function monthKey(dateStr) { return dateStr.slice(0,7); }
+function fmtMonthLabel(key) {
+  const [y,m] = key.split('-');
+  return MONTHS_DE[parseInt(m,10)-1] + ' ' + y;
+}
+function fmtEUR(n) {
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  return n.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+}
+function fmtNum(n, dec=2) {
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  return n.toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+
+function switchTab(name) {
+  document.getElementById('tab-arbeit').style.display = name === 'arbeit' ? '' : 'none';
+  document.getElementById('tab-finanzen').style.display = name === 'finanzen' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+}
+
+function handleAddEntry(e) {
+  e.preventDefault();
+  const date = document.getElementById('in-date').value;
+  const std = parseFloat(document.getElementById('in-std').value);
+  const tg = parseFloat(document.getElementById('in-tg').value);
+  if (!date || isNaN(std) || isNaN(tg)) return false;
+  const existingIdx = daily.findIndex(d => d.date === date);
+  if (existingIdx >= 0) {
+    if (!confirm(`Für ${date} existiert bereits ein Eintrag. Überschreiben?`)) return false;
+    daily.splice(existingIdx, 1);
+  }
+  daily.push({ date, brutto: null, netto: std, trinkgeld: tg });
+  daily.sort((a,b) => a.date.localeCompare(b.date));
+  saveDaily();
+  document.getElementById('in-std').value = '';
+  document.getElementById('in-tg').value = '';
+  renderAll();
+  return false;
+}
+
+function deleteEntry(date) {
+  if (!confirm(`Eintrag vom ${date} wirklich löschen?`)) return;
+  daily = daily.filter(d => d.date !== date);
+  saveDaily();
+  renderAll();
+}
+
+function updateLohn(key, value) {
+  const v = parseFloat(value);
+  if (value === '' || isNaN(v)) { delete lohn[key]; } else { lohn[key] = v; }
+  saveLohn();
+  renderAll();
+}
+
+function aggregateMonthly() {
+  const map = {};
+  for (const d of daily) {
+    const key = monthKey(d.date);
+    if (!map[key]) map[key] = { std: 0, tg: 0 };
+    map[key].std += (d.netto || 0);
+    map[key].tg += (d.trinkgeld || 0);
+  }
+  const keys = new Set([...Object.keys(map), ...Object.keys(lohn)]);
+  const rows = [...keys].sort().map(key => {
+    const std = map[key] ? map[key].std : 0;
+    const tg = map[key] ? map[key].tg : 0;
+    const l = lohn[key] !== undefined ? lohn[key] : null;
+    const lt = tg + (l || 0);
+    return {
+      key, std, tg, lohn: l, lt,
+      tgPerStd: std > 0 ? tg/std : null,
+      lohnPerStd: (l !== null && std > 0) ? l/std : null,
+      gesamtPerStd: std > 0 ? lt/std : null
+    };
+  });
+  return rows;
+}
+
+function populateKpiMonthSelect() {
+  const sel = document.getElementById('kpi-month-select');
+  const keys = [...new Set([...daily.map(d => monthKey(d.date)), ...Object.keys(lohn)])].sort().reverse();
+  const prevValue = sel.value;
+  sel.innerHTML = keys.map(k => `<option value="${k}">${fmtMonthLabel(k)}</option>`).join('');
+  const realCurrent = new Date().toISOString().slice(0,7);
+  if (prevValue && keys.includes(prevValue)) sel.value = prevValue;
+  else if (keys.includes(realCurrent)) sel.value = realCurrent;
+  else if (keys.length) sel.value = keys[0];
+}
+
+function renderKPIs(monthlyRows) {
+  const sel = document.getElementById('kpi-month-select');
+  const selKey = sel.value || new Date().toISOString().slice(0,7);
+  const cur = monthlyRows.find(r => r.key === selKey) || {std:0, tg:0, lohn:null, lt:0};
+  const selYear = selKey.slice(0,4);
+  const selMonthNum = parseInt(selKey.slice(5,7), 10);
+  const yearRows = monthlyRows.filter(r => r.key.slice(0,4) === selYear && parseInt(r.key.slice(5,7),10) <= selMonthNum);
+  const yearStd = yearRows.reduce((s,r)=>s+r.std,0);
+  const yearTg = yearRows.reduce((s,r)=>s+r.tg,0);
+  const el = document.getElementById('kpi-row');
+  el.innerHTML = `
+    <div class="kpi"><div class="label">${fmtMonthLabel(selKey)}</div><div class="value">${fmtNum(cur.std,1)} Std</div></div>
+    <div class="kpi"><div class="label">Trinkgeld ${fmtMonthLabel(selKey)}</div><div class="value">${fmtEUR(cur.tg)}</div></div>
+    <div class="kpi"><div class="label">Jahr ${selYear} bisher (bis ${fmtMonthLabel(selKey).split(' ')[0]})</div><div class="value">${fmtNum(yearStd,1)} Std</div></div>
+    <div class="kpi"><div class="label">Trinkgeld ${selYear} bisher</div><div class="value">${fmtEUR(yearTg)}</div></div>
+  `;
+}
+
+function renderMonthlyTable(monthlyRows) {
+  const tbody = document.getElementById('monthly-tbody');
+  const sorted = [...monthlyRows].sort((a,b) => b.key.localeCompare(a.key));
+  tbody.innerHTML = sorted.map(r => `
+    <tr>
+      <td>${fmtMonthLabel(r.key)}</td>
+      <td>${fmtNum(r.std,2)}</td>
+      <td>${fmtEUR(r.tg)}</td>
+      <td><input class="lohn-input ${r.lohn===null?'missing':''}" type="number" step="0.01"
+            value="${r.lohn !== null ? r.lohn : ''}" placeholder="offen"
+            onchange="updateLohn('${r.key}', this.value)"></td>
+      <td>${fmtEUR(r.lt)}</td>
+      <td>${fmtEUR(r.tgPerStd)}</td>
+      <td>${fmtEUR(r.lohnPerStd)}</td>
+      <td>${fmtEUR(r.gesamtPerStd)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderYearlyChartsAndTable(monthlyRows) {
+  const years = [...new Set(monthlyRows.map(r=>r.key.slice(0,4)))].sort();
+  const yearAgg = years.map(y => {
+    const rows = monthlyRows.filter(r=>r.key.slice(0,4)===y);
+    const std = rows.reduce((s,r)=>s+r.std,0);
+    const tg = rows.reduce((s,r)=>s+r.tg,0);
+    const knownLohnRows = rows.filter(r=>r.lohn!==null);
+    const l = knownLohnRows.reduce((s,r)=>s+r.lohn,0);
+    const lohnStd = knownLohnRows.reduce((s,r)=>s+r.std,0);
+    return { year: y, std, tg, lohn: l, lohnPerStd: lohnStd>0 ? l/lohnStd : null };
+  });
+  return yearAgg;
+}
+
+let chartYearly;
+
+function renderCharts(monthlyRows) {
+  const yearAgg = renderYearlyChartsAndTable(monthlyRows);
+  if (chartYearly) chartYearly.destroy();
+  chartYearly = new Chart(document.getElementById('chartYearly'), {
+    type: 'bar',
+    data: { labels: yearAgg.map(y=>y.year), datasets: [
+      { label: 'Trinkgeld (€)', data: yearAgg.map(y=>y.tg), backgroundColor: '#2f7fb8' },
+      { label: 'Lohn (€)', data: yearAgg.map(y=>y.lohn), backgroundColor: '#1F4E78' }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+
+function populateMonthFilter() {
+  const sel = document.getElementById('filter-month');
+  const keys = [...new Set(daily.map(d=>monthKey(d.date)))].sort().reverse();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Alle Monate</option>' + keys.map(k => `<option value="${k}">${fmtMonthLabel(k)}</option>`).join('');
+  if (keys.includes(cur)) sel.value = cur;
+}
+
+function renderDailyTable() {
+  const filter = document.getElementById('filter-month').value;
+  const tbody = document.getElementById('daily-tbody');
+  let rows = [...daily].sort((a,b) => b.date.localeCompare(a.date));
+  if (filter) rows = rows.filter(d => monthKey(d.date) === filter);
+  else rows = rows.slice(0, 60);
+  tbody.innerHTML = rows.map(d => {
+    const rate = d.netto > 0 ? d.trinkgeld / d.netto : null;
+    return `<tr>
+      <td>${d.date}</td>
+      <td>${d.brutto !== null ? fmtNum(d.brutto,2) : '–'}</td>
+      <td>${fmtNum(d.netto,2)}</td>
+      <td>${fmtEUR(d.trinkgeld)}</td>
+      <td>${fmtEUR(rate)}</td>
+      <td><button class="danger" onclick="deleteEntry('${d.date}')">Löschen</button></td>
+    </tr>`;
+  }).join('');
+}
+
+let compareMode = 'ytd';
+
+function setCompareMode(mode) {
+  compareMode = mode;
+  document.getElementById('btn-mode-ytd').classList.toggle('active-mode', mode === 'ytd');
+  document.getElementById('btn-mode-month').classList.toggle('active-mode', mode === 'month');
+  document.getElementById('compare-month-select').style.display = mode === 'month' ? '' : 'none';
+  renderComparison();
+}
+
+function populateCompareMonthSelect() {
+  const sel = document.getElementById('compare-month-select');
+  sel.innerHTML = MONTHS_DE.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+  sel.value = new Date().getMonth() + 1;
+  sel.addEventListener('change', renderComparison);
+}
+
+function deltaCell(delta, pct) {
+  if (delta === null || delta === undefined) return '<td>–</td>';
+  const sign = delta >= 0 ? '+' : '';
+  const color = delta >= 0 ? '#1a8754' : '#c0392b';
+  const pctStr = pct === null ? '' : ` (${sign}${fmtNum(pct,1)}%)`;
+  return `<td style="color:${color}; font-weight:bold;">${sign}${fmtEUR(delta)}${pctStr}</td>`;
+}
+
+function renderComparison() {
+  const monthlyRows = aggregateMonthly();
+  const thead = document.getElementById('compare-thead');
+  const tbody = document.getElementById('compare-tbody');
+  const headline = document.getElementById('compare-headline');
+
+  let rows, headlineLabel;
+
+  if (compareMode === 'ytd') {
+    const cutoff = new Date().getMonth() + 1;
+    const monthLabel = MONTHS_DE[cutoff - 1];
+    const years = [...new Set(monthlyRows.map(r => r.key.slice(0,4)))].sort();
+    rows = years.map(y => {
+      const yr = monthlyRows.filter(r => r.key.slice(0,4) === y && parseInt(r.key.split('-')[1],10) <= cutoff);
+      const monthNums = yr.map(r => parseInt(r.key.split('-')[1],10)).sort((a,b)=>a-b);
+      const std = yr.reduce((s,r)=>s+r.std,0);
+      const tg = yr.reduce((s,r)=>s+r.tg,0);
+      const lohnRows = yr.filter(r => r.lohn !== null);
+      const lohn = lohnRows.length ? lohnRows.reduce((s,r)=>s+r.lohn,0) : null;
+      const complete = monthNums.length > 0 && monthNums[0] === 1 && monthNums.length === cutoff;
+      const rangeLabel = monthNums.length ? `${MONTHS_DE[monthNums[0]-1].slice(0,3)}–${MONTHS_DE[monthNums[monthNums.length-1]-1].slice(0,3)}` : '–';
+      return { label: y, std, tg, lohn, lt: tg + (lohn||0), count: yr.length, complete, rangeLabel };
+    }).filter(r => r.count > 0);
+    thead.innerHTML = `<tr><th>Jahr</th><th>Zeitraum</th><th>Std</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>Δ Trinkgeld</th><th>Δ Lohn</th><th>Δ Lohn+TG</th></tr>`;
+    headlineLabel = `Jan–${monthLabel}`;
+  } else {
+    const monthNum = parseInt(document.getElementById('compare-month-select').value, 10);
+    const monthLabel = MONTHS_DE[monthNum - 1];
+    rows = monthlyRows
+      .filter(r => parseInt(r.key.split('-')[1],10) === monthNum)
+      .sort((a,b) => a.key.localeCompare(b.key))
+      .map(r => ({ label: r.key.slice(0,4), std: r.std, tg: r.tg, lohn: r.lohn, lt: r.lt, count: 1, complete: true, rangeLabel: null }));
+    thead.innerHTML = `<tr><th>Jahr</th><th>Std</th><th>Trinkgeld</th><th>Lohn</th><th>Lohn+TG</th><th>Δ Trinkgeld</th><th>Δ Lohn</th><th>Δ Lohn+TG</th></tr>`;
+    headlineLabel = monthLabel;
+  }
+
+  tbody.innerHTML = rows.map((r,i) => {
+    const prev = rows[i-1];
+    const deltaTg = prev ? r.tg - prev.tg : null;
+    const pctTg = (prev && prev.tg > 0) ? (deltaTg/prev.tg*100) : null;
+    const deltaLohn = (prev && r.lohn !== null && prev.lohn !== null) ? r.lohn - prev.lohn : null;
+    const pctLohn = (deltaLohn !== null && prev.lohn > 0) ? (deltaLohn/prev.lohn*100) : null;
+    const deltaLt = prev ? r.lt - prev.lt : null;
+    const pctLt = (prev && prev.lt > 0) ? (deltaLt/prev.lt*100) : null;
+    const rangeCell = r.rangeLabel !== null ? `<td>${r.rangeLabel}${!r.complete ? ' ⚠︎' : ''}</td>` : '';
+    return `<tr><td>${r.label}</td>${rangeCell}<td>${fmtNum(r.std,1)}</td><td>${fmtEUR(r.tg)}</td><td>${fmtEUR(r.lohn)}</td><td>${fmtEUR(r.lt)}</td>${deltaCell(deltaTg, pctTg)}${deltaCell(deltaLohn, pctLohn)}${deltaCell(deltaLt, pctLt)}</tr>`;
+  }).join('');
+
+  if (rows.length >= 2) {
+    const last = rows[rows.length-1];
+    const prev = rows[rows.length-2];
+    const deltaTg = last.tg - prev.tg;
+    const pctTg = prev.tg > 0 ? (deltaTg/prev.tg*100) : null;
+    const deltaLohn = (last.lohn !== null && prev.lohn !== null) ? last.lohn - prev.lohn : null;
+    const pctLohn = (deltaLohn !== null && prev.lohn > 0) ? (deltaLohn/prev.lohn*100) : null;
+    const deltaLt = last.lt - prev.lt;
+    const pctLt = prev.lt > 0 ? (deltaLt/prev.lt*100) : null;
+    const richtung = deltaTg >= 0 ? 'mehr' : 'weniger';
+    const sign = deltaTg >= 0 ? '+' : '';
+    const lohnTxt = deltaLohn === null ? 'Lohn noch nicht für beide Zeiträume bekannt' :
+      `Lohn ${deltaLohn>=0?'+':''}${fmtEUR(deltaLohn)}${pctLohn!==null?` (${deltaLohn>=0?'+':''}${fmtNum(pctLohn,1)}%)`:''}`;
+    const gesamtTxt = `Gesamt (Lohn+TG) ${deltaLt>=0?'+':''}${fmtEUR(deltaLt)}${pctLt!==null?` (${deltaLt>=0?'+':''}${fmtNum(pctLt,1)}%)`:''}`;
+    const caveat = (!last.complete || !prev.complete) ? ` <span style="color:#b06a19;">(Achtung: nicht beide Zeiträume vollständig ${headlineLabel} – ${prev.rangeLabel||''} vs. ${last.rangeLabel||''})</span>` : '';
+    headline.innerHTML = `<b>${headlineLabel} ${last.label}:</b> ${fmtEUR(last.tg)} Trinkgeld – das sind ${sign}${fmtEUR(deltaTg)} (${sign}${fmtNum(pctTg,1)}%) ${richtung} als ${headlineLabel} ${prev.label}. ${lohnTxt}. ${gesamtTxt}.${caveat}`;
+  } else if (rows.length === 1) {
+    headline.innerHTML = `Für ${headlineLabel} ${rows[0].label} gibt es noch kein Vorjahr zum Vergleichen.`;
+  } else {
+    headline.innerHTML = `Noch keine Daten für ${headlineLabel}.`;
+  }
+}
+
+// ==================== Finanzen & Trading ====================
+
+function aggregateVermogen() {
+  return [...vermogen].sort((a,b) => a.monat.localeCompare(b.monat)).map(r => {
+    const depot = (r.ftse||0) + (r.ai_bigdata||0) + (r.dbx0an||0);
+    const cash = (r.trade_republic||0) + (r.targo||0) + (r.bargeld||0);
+    const festgeld = r.festgeld || 0;
+    const gesamt = depot + festgeld + cash;
+    return { ...r, depot, cash, festgeld, gesamt };
+  });
+}
+
+function handleSetZiel(e) {
+  e.preventDefault();
+  const betrag = parseFloat(document.getElementById('ziel-betrag').value);
+  ziel = { betrag: isNaN(betrag) || betrag <= 0 ? null : betrag };
+  saveZiel();
+  renderZielTracker(aggregateVermogen());
+  return false;
+}
+
+function renderZielTracker(vRows) {
+  const el = document.getElementById('ziel-anzeige');
+  if (!ziel.betrag) {
+    el.innerHTML = '<p class="note">Noch kein Ziel gesetzt – trag oben ein Ziel-Vermögen ein, um Fortschritt und Prognose zu sehen.</p>';
+    return;
+  }
+  if (!vRows.length) {
+    el.innerHTML = '<p class="note">Noch keine Vermögensdaten erfasst.</p>';
+    return;
+  }
+  const current = vRows[vRows.length-1].gesamt;
+  const pct = Math.max(0, Math.min(100, current / ziel.betrag * 100));
+
+  // Durchschnittliches monatliches Wachstum aus echten, aufeinanderfolgenden Monaten (max. letzte 6)
+  const deltas = [];
+  for (let i = 1; i < vRows.length; i++) {
+    deltas.push(vRows[i].gesamt - vRows[i-1].gesamt);
+  }
+  const recentDeltas = deltas.slice(-6);
+  const avgDelta = recentDeltas.length ? recentDeltas.reduce((a,b)=>a+b,0) / recentDeltas.length : 0;
+
+  let prognoseHtml;
+  if (current >= ziel.betrag) {
+    prognoseHtml = `<p class="note" style="color:var(--green); font-weight:bold;">🎉 Ziel bereits erreicht!</p>`;
+  } else if (avgDelta > 0) {
+    const monthsNeeded = Math.ceil((ziel.betrag - current) / avgDelta);
+    const target = new Date();
+    target.setMonth(target.getMonth() + monthsNeeded);
+    const targetLabel = target.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    prognoseHtml = `<p class="note">Bei durchschnittlich ${fmtEUR(avgDelta)}/Monat Zuwachs (Ø letzte ${recentDeltas.length} Monate): Ziel voraussichtlich in ca. <b>${monthsNeeded} Monat${monthsNeeded===1?'':'en'}</b> erreicht (~${targetLabel}).</p>`;
+  } else {
+    prognoseHtml = `<p class="note">Bei aktuellem Trend (Ø ${fmtEUR(avgDelta)}/Monat) ist keine Prognose möglich – das Vermögen wächst im Schnitt nicht.</p>`;
+  }
+
+  el.innerHTML = `
+    <div class="progress-track">
+      <div class="progress-fill" style="width:${pct}%;"></div>
+      <div class="progress-label">${fmtEUR(current)} / ${fmtEUR(ziel.betrag)} (${fmtNum(pct,1)}%)</div>
+    </div>
+    ${prognoseHtml}
+  `;
+}
+
+const ANTEIL_POSITIONS = { ftse: 'ftse', ai: 'ai_bigdata', dbx: 'dbx0an' };
+
+function updateAnteilPreview(key) {
+  const anteile = parseFloat(document.getElementById(`v-${key}-anteile`).value) || 0;
+  const kurs = parseFloat(document.getElementById(`v-${key}-kurs`).value) || 0;
+  const wert = anteile * kurs;
+  document.getElementById(`v-${key}-preview`).textContent = wert > 0 ? fmtEUR(wert) : '–';
+}
+
+function handleAddVermogen(e) {
+  e.preventDefault();
+  const monat = document.getElementById('v-monat').value;
+  if (!monat) return false;
+  const val = id => parseFloat(document.getElementById(id).value) || 0;
+  const entry = { monat, festgeld: val('v-festgeld'), trade_republic: val('v-trade'),
+    targo: val('v-targo'), bargeld: val('v-bargeld'), sparrate: val('v-sparrate') };
+  for (const key of Object.keys(ANTEIL_POSITIONS)) {
+    const field = ANTEIL_POSITIONS[key];
+    const anteile = val(`v-${key}-anteile`);
+    const kurs = val(`v-${key}-kurs`);
+    entry[field] = anteile * kurs;
+    entry[`${field}_anteile`] = anteile > 0 ? anteile : null;
+    entry[`${field}_kurs`] = kurs > 0 ? kurs : null;
+  }
+  const existingIdx = vermogen.findIndex(v => v.monat === monat);
+  if (existingIdx >= 0) {
+    if (!confirm(`Für ${fmtMonthLabel(monat)} existiert schon ein Stand. Überschreiben?`)) return false;
+    vermogen.splice(existingIdx, 1);
+  }
+  vermogen.push(entry);
+  saveVermogen();
+  ['v-ftse-anteile','v-ftse-kurs','v-ai-anteile','v-ai-kurs','v-dbx-anteile','v-dbx-kurs',
+   'v-festgeld','v-trade','v-targo','v-bargeld','v-sparrate'].forEach(id => document.getElementById(id).value = '');
+  ['ftse','ai','dbx'].forEach(k => document.getElementById(`v-${k}-preview`).textContent = '–');
+  renderAll();
+  return false;
+}
+
+function renderAnteileTable(vRows) {
+  const tbody = document.getElementById('anteile-tbody');
+  tbody.innerHTML = [...vRows].reverse().map(r => {
+    const cell = (anteile, kurs) => anteile ? `<td>${fmtNum(anteile,4)}</td><td>${fmtEUR(kurs)}</td>` : '<td>–</td><td>–</td>';
+    return `<tr><td>${fmtMonthLabel(r.monat)}</td>${cell(r.ftse_anteile, r.ftse_kurs)}${cell(r.ai_bigdata_anteile, r.ai_bigdata_kurs)}${cell(r.dbx0an_anteile, r.dbx0an_kurs)}</tr>`;
+  }).join('');
+}
+
+const KURSGEWINN_POSITIONS = ['ftse', 'ai_bigdata', 'dbx0an'];
+
+function computeKursgewinnEinzahlung() {
+  const vRows = [...vermogen].sort((a,b) => a.monat.localeCompare(b.monat));
+  const out = [];
+  for (let i = 1; i < vRows.length; i++) {
+    const prev = vRows[i-1], curr = vRows[i];
+    let einzahlung = 0, kursgewinn = 0, anyData = false;
+    KURSGEWINN_POSITIONS.forEach(pos => {
+      const aPrev = prev[`${pos}_anteile`], kPrev = prev[`${pos}_kurs`];
+      const aCurr = curr[`${pos}_anteile`], kCurr = curr[`${pos}_kurs`];
+      if (aPrev != null && kPrev != null && aCurr != null && kCurr != null) {
+        anyData = true;
+        const deltaAnteile = aCurr - aPrev;
+        einzahlung += deltaAnteile * kCurr;
+        kursgewinn += aPrev * (kCurr - kPrev);
+      }
+    });
+    if (anyData) out.push({ monat: curr.monat, einzahlung, kursgewinn, total: einzahlung + kursgewinn });
+  }
+  return out;
+}
+
+let chartKursgewinn;
+function renderKursgewinn() {
+  const card = document.getElementById('kursgewinn-card');
+  const rows = computeKursgewinnEinzahlung();
+  if (!rows.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const tbody = document.getElementById('kursgewinn-tbody');
+  tbody.innerHTML = [...rows].reverse().map(r =>
+    `<tr><td>${fmtMonthLabel(r.monat)}</td><td>${fmtEUR(r.einzahlung)}</td><td style="color:${r.kursgewinn>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'};">${fmtEUR(r.kursgewinn)}</td><td>${fmtEUR(r.total)}</td></tr>`
+  ).join('');
+
+  if (chartKursgewinn) chartKursgewinn.destroy();
+  chartKursgewinn = new Chart(document.getElementById('chartKursgewinn'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => fmtMonthLabel(r.monat)),
+      datasets: [
+        { label: 'Einzahlung', data: rows.map(r => r.einzahlung), backgroundColor: '#1a3d5c' },
+        { label: 'Kursgewinn/-verlust', data: rows.map(r => r.kursgewinn), backgroundColor: '#22b76a' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+  });
+}
+
+function renderFinKPIs(vRows) {
+  const el = document.getElementById('fin-kpi-row');
+  if (!vRows.length) { el.innerHTML = '<p class="note">Noch keine Vermögensdaten erfasst.</p>'; return; }
+  const last = vRows[vRows.length-1];
+  const prev = vRows.length > 1 ? vRows[vRows.length-2] : null;
+  const delta = prev ? last.gesamt - prev.gesamt : null;
+  const pct = (prev && prev.gesamt > 0) ? (delta/prev.gesamt*100) : null;
+  const badge = delta === null ? '' : (delta >= 0
+    ? `<span style="color:#b7e3c9;">▲ +${fmtEUR(delta)} (+${fmtNum(pct,1)}%)</span>`
+    : `<span style="color:#f3b6b6;">▼ ${fmtEUR(delta)} (${fmtNum(pct,1)}%)</span>`);
+  el.innerHTML = `
+    <div class="kpi"><div class="label">Gesamtvermögen (${fmtMonthLabel(last.monat)})</div><div class="value">${fmtEUR(last.gesamt)}</div><div style="font-size:12px; margin-top:4px;">${badge}</div></div>
+    <div class="kpi"><div class="label">Depot (ETFs)</div><div class="value">${fmtEUR(last.depot)}</div></div>
+    <div class="kpi"><div class="label">Festgeld + Cash</div><div class="value">${fmtEUR(last.festgeld + last.cash)}</div></div>
+    <div class="kpi"><div class="label">Sparrate ${fmtMonthLabel(last.monat)}</div><div class="value">${fmtEUR(last.sparrate)}</div></div>
+  `;
+}
+
+let chartVermogen;
+function renderVermogenChart(vRows) {
+  const labels = vRows.map(r => fmtMonthLabel(r.monat));
+  if (chartVermogen) chartVermogen.destroy();
+  chartVermogen = new Chart(document.getElementById('chartVermogen'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type:'bar', label: 'Depot (ETFs)', data: vRows.map(r=>r.depot), backgroundColor: '#2f7fb8', stack: 's' },
+        { type:'bar', label: 'Festgeld', data: vRows.map(r=>r.festgeld), backgroundColor: '#8fb8d8', stack: 's' },
+        { type:'bar', label: 'Cash', data: vRows.map(r=>r.cash), backgroundColor: '#c9d9e6', stack: 's' },
+        { type:'line', label: 'Gesamtvermögen', data: vRows.map(r=>r.gesamt), borderColor: '#1a8754', backgroundColor: '#1a8754', tension: 0.25 }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, scales: { y: { stacked:false, title:{display:true,text:'€'} }, x: { stacked:true } } }
+  });
+}
+
+function renderVermogenTable(vRows) {
+  const tbody = document.getElementById('vermogen-tbody');
+  tbody.innerHTML = [...vRows].reverse().map((r,i,arr) => {
+    const prev = arr[i+1];
+    const delta = prev ? r.gesamt - prev.gesamt : null;
+    const pct = (prev && prev.gesamt>0) ? (delta/prev.gesamt*100) : null;
+    return `<tr><td>${fmtMonthLabel(r.monat)}</td><td>${fmtEUR(r.depot)}</td><td>${fmtEUR(r.festgeld)}</td><td>${fmtEUR(r.cash)}</td><td>${fmtEUR(r.gesamt)}</td>${deltaCell(delta,pct)}<td>${fmtEUR(r.sparrate)}</td></tr>`;
+  }).join('');
+}
+
+function populateKategorieSelect() {
+  const sel = document.getElementById('k-kategorie-select');
+  if (!sel) return;
+  const prevValue = sel.value;
+  const cats = [...new Set(kosten.map(k => k.kategorie))].sort((a,b) => a.localeCompare(b, 'de'));
+  sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('')
+    + '<option value="__new__">➕ Neue Kategorie…</option>';
+  if (cats.includes(prevValue)) sel.value = prevValue;
+  toggleNewKategorie();
+}
+
+function toggleNewKategorie() {
+  const sel = document.getElementById('k-kategorie-select');
+  const wrap = document.getElementById('k-kategorie-new-wrap');
+  if (!sel || !wrap) return;
+  wrap.style.display = sel.value === '__new__' ? '' : 'none';
+}
+
+function toggleRecurring() {
+  const cb = document.getElementById('k-recurring');
+  const wrap = document.getElementById('k-recurring-wrap');
+  if (!cb || !wrap) return;
+  wrap.style.display = cb.checked ? '' : 'none';
+}
+
+function getSelectedKategorie() {
+  const sel = document.getElementById('k-kategorie-select');
+  if (!sel) return '';
+  if (sel.value === '__new__') {
+    return document.getElementById('k-kategorie-new').value.trim();
+  }
+  return sel.value;
+}
+
+function monthRange(start, end) {
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end.split('-').map(Number);
+  const startIdx = sy * 12 + sm;
+  const endIdx = ey * 12 + em;
+  const out = [];
+  for (let i = startIdx; i <= endIdx; i++) {
+    const y = Math.floor((i - 1) / 12);
+    const m = ((i - 1) % 12) + 1;
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+function resetKostenForm() {
+  document.getElementById('k-kategorie-new').value = '';
+  document.getElementById('k-betrag').value = '';
+  document.getElementById('k-recurring').checked = false;
+  document.getElementById('k-recurring-until').value = '';
+  toggleRecurring();
+}
+
+function handleAddKosten(e) {
+  e.preventDefault();
+  const kategorie = getSelectedKategorie();
+  const monat = document.getElementById('k-monat').value;
+  const betrag = parseFloat(document.getElementById('k-betrag').value);
+  const konto = document.getElementById('k-konto').value;
+  if (!kategorie || !monat || isNaN(betrag)) {
+    alert('Bitte Kategorie, Monat und Betrag ausfüllen.');
+    return false;
+  }
+  const recurring = document.getElementById('k-recurring').checked;
+  const untilMonat = document.getElementById('k-recurring-until').value;
+
+  let months = [monat];
+  if (recurring && untilMonat) {
+    months = monthRange(monat, untilMonat);
+    if (months.length === 0 || untilMonat < monat) {
+      alert('"Wiederholen bis" muss auf oder nach dem Start-Monat liegen.');
+      return false;
+    }
+  }
+
+  const existing = months.filter(m => kosten.some(k => k.kategorie === kategorie && k.monat === m && k.konto === konto));
+  if (existing.length > 0) {
+    const label = existing.map(fmtMonthLabel).join(', ');
+    if (!confirm(`Für ${kategorie} existiert schon ein Eintrag in: ${label}. Überschreiben?`)) return false;
+  }
+
+  months.forEach(m => {
+    const idx = kosten.findIndex(k => k.kategorie === kategorie && k.monat === m && k.konto === konto);
+    if (idx >= 0) kosten.splice(idx, 1);
+    kosten.push({ kategorie, monat: m, betrag, konto });
+  });
+
+  saveKosten();
+  resetKostenForm();
+  populateKategorieSelect();
+  renderAll();
+  return false;
+}
+
+function deleteKosten(idx) {
+  if (!confirm('Diesen Kosten-Eintrag löschen?')) return;
+  kosten.splice(idx, 1);
+  saveKosten();
+  renderAll();
+}
+
+function aggregateKostenByMonth() {
+  const map = {};
+  kosten.forEach(k => {
+    if (!map[k.monat]) map[k.monat] = 0;
+    map[k.monat] += k.betrag;
+  });
+  return map;
+}
+
+let chartKosten;
+function renderKostenChart() {
+  const map = aggregateKostenByMonth();
+  const keys = Object.keys(map).sort();
+  if (chartKosten) chartKosten.destroy();
+  chartKosten = new Chart(document.getElementById('chartKosten'), {
+    type: 'bar',
+    data: { labels: keys.map(fmtMonthLabel), datasets: [{ label: 'Fixkosten gesamt', data: keys.map(k=>map[k]), backgroundColor: '#1F4E78' }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
+
+function renderKostenTable() {
+  const tbody = document.getElementById('kosten-tbody');
+  const sorted = kosten.map((k,idx) => ({...k, idx})).sort((a,b) => b.monat.localeCompare(a.monat) || a.kategorie.localeCompare(b.kategorie));
+  tbody.innerHTML = sorted.map(k => `<tr><td>${fmtMonthLabel(k.monat)}</td><td>${k.kategorie}</td><td>${k.konto}</td><td>${fmtEUR(k.betrag)}</td><td><button class="danger" onclick="deleteKosten(${k.idx})">Löschen</button></td></tr>`).join('');
+}
+
+function nettoUebrigSeries() {
+  const awRows = aggregateMonthly();
+  const kMap = aggregateKostenByMonth();
+  return awRows
+    .filter(r => r.lohn !== null) // nur Monate mit bekanntem Lohn zählen als abgeschlossen
+    .map(r => ({ key: r.key, netto: r.lt - (kMap[r.key] || 0) }))
+    .sort((a,b) => a.key.localeCompare(b.key));
+}
+
+function computeAvgNettoUebrig(months = 6) {
+  const series = nettoUebrigSeries();
+  if (!series.length) return null;
+  const slice = series.slice(-months);
+  const sum = slice.reduce((s,r) => s + r.netto, 0);
+  return sum / slice.length;
+}
+
+function useAvgSparrate() {
+  const avg = computeAvgNettoUebrig(6);
+  if (avg === null) {
+    alert('Noch keine Daten für Einkommen/Fixkosten vorhanden, um einen Durchschnitt zu berechnen.');
+    return;
+  }
+  document.getElementById('wr-rate').value = avg.toFixed(2);
+  const note = document.getElementById('wr-rate-note');
+  note.innerHTML = `Übernommen: Ø ${fmtEUR(avg)}/Monat aus deinem echten Netto übrig der letzten ${Math.min(6, nettoUebrigSeries().length)} Monate. Passe den Wert gern manuell an.`;
+  renderWachstum();
+}
+
+let chartWachstum;
+function renderWachstum() {
+  const vRows = aggregateVermogen();
+  const last = vRows[vRows.length-1];
+  const startEl = document.getElementById('wr-start');
+  const rateEl = document.getElementById('wr-rate');
+  const returnEl = document.getElementById('wr-return');
+  const yearsEl = document.getElementById('wr-years');
+
+  const saved = JSON.parse(localStorage.getItem(STORAGE_WACHSTUM) || '{}');
+  const avgNetto = computeAvgNettoUebrig(6);
+  if (startEl.value === '') startEl.value = saved.start ?? (last ? last.gesamt.toFixed(2) : 0);
+  if (rateEl.value === '') rateEl.value = saved.rate ?? (avgNetto !== null ? avgNetto.toFixed(2) : (last ? last.sparrate : 0));
+  if (returnEl.value === '') returnEl.value = saved.ret ?? 7;
+  if (yearsEl.value === '') yearsEl.value = saved.years ?? 15;
+
+  const start = parseFloat(startEl.value) || 0;
+  const monthlyRate = parseFloat(rateEl.value) || 0;
+  const annualReturn = (parseFloat(returnEl.value) || 0) / 100;
+  const years = parseInt(yearsEl.value, 10) || 15;
+  localStorage.setItem(STORAGE_WACHSTUM, JSON.stringify({ start, rate: monthlyRate, ret: annualReturn*100, years }));
+
+  const monthlyGrowth = Math.pow(1 + annualReturn, 1/12) - 1;
+  let capital = start;
+  const quarters = [];
+  let yearStartCapital = start;
+  const now = new Date();
+  for (let m = 1; m <= years*12; m++) {
+    capital = capital * (1 + monthlyGrowth) + monthlyRate;
+    if (m % 3 === 0) {
+      const future = new Date(now.getFullYear(), now.getMonth() + m, 1);
+      const q = Math.floor(future.getMonth()/3) + 1;
+      const label = `Q${q} ${future.getFullYear().toString().slice(2)}`;
+      quarters.push({ label, capital });
+    }
+    if (m % 12 === 0) {
+      quarters[quarters.length-1].zinsJahr = capital - yearStartCapital - monthlyRate*12;
+      yearStartCapital = capital;
+    }
+  }
+
+  const tbody = document.getElementById('wachstum-tbody');
+  tbody.innerHTML = quarters.map(q => `<tr><td>${q.label}</td><td>${fmtEUR(q.capital)}</td><td>${q.zinsJahr!==undefined ? fmtEUR(q.zinsJahr) : '–'}</td></tr>`).join('');
+
+  if (chartWachstum) chartWachstum.destroy();
+  chartWachstum = new Chart(document.getElementById('chartWachstum'), {
+    type: 'line',
+    data: { labels: quarters.map(q=>q.label), datasets: [{ label: 'Prognose Vermögen', data: quarters.map(q=>q.capital), borderColor: '#1a8754', backgroundColor: '#1a8754', tension: 0.2 }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
+
+function renderGesamtuebersicht() {
+  const awRows = aggregateMonthly(); // Alter Wirt: {key, tg, lohn, lt, ...}
+  const vRows = aggregateVermogen();
+  const kMap = aggregateKostenByMonth();
+  const vByMonth = {};
+  vRows.forEach(r => vByMonth[r.monat] = r);
+  const allKeys = new Set([...awRows.map(r=>r.key), ...Object.keys(kMap), ...vRows.map(r=>r.monat)]);
+  const sortedKeys = [...allKeys].sort();
+
+  const tbody = document.getElementById('gesamt-tbody');
+  tbody.innerHTML = sortedKeys.map((key,i) => {
+    const aw = awRows.find(r => r.key === key);
+    const einkommen = (aw && aw.lohn !== null) ? aw.lt : null; // Lohn unbekannt -> Einkommen/Sparquote nicht belastbar
+    const fixkosten = kMap[key] || 0;
+    const nettoUebrig = einkommen !== null ? einkommen - fixkosten : null;
+    const sparquote = (einkommen !== null && einkommen > 0) ? (nettoUebrig / einkommen * 100) : null;
+    const v = vByMonth[key];
+    const vPrevKey = sortedKeys[i-1];
+    const vPrev = vPrevKey ? vByMonth[vPrevKey] : null;
+    const deltaV = (v && vPrev) ? v.gesamt - vPrev.gesamt : null;
+    const sparquoteCell = sparquote !== null
+      ? `<span style="color:${sparquote>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'}; font-weight:600;">${fmtNum(sparquote,1)}%</span>`
+      : '–';
+    return `<tr><td>${fmtMonthLabel(key)}</td><td>${einkommen!==null?fmtEUR(einkommen):'–'}</td><td>${fmtEUR(fixkosten)}</td><td>${nettoUebrig!==null?fmtEUR(nettoUebrig):'–'}</td><td>${sparquoteCell}</td><td>${v?fmtEUR(v.gesamt):'–'}</td><td>${deltaV!==null?fmtEUR(deltaV):'–'}</td></tr>`;
+  }).join('');
+
+  const summaryEl = document.getElementById('gesamt-sparquote-summary');
+  if (summaryEl) {
+    const sparquoten = sortedKeys.map(key => {
+      const aw = awRows.find(r => r.key === key);
+      const einkommen = (aw && aw.lohn !== null) ? aw.lt : null;
+      if (einkommen === null || einkommen <= 0) return null;
+      const fixkosten = kMap[key] || 0;
+      return (einkommen - fixkosten) / einkommen * 100;
+    }).filter(v => v !== null).slice(-6);
+    if (sparquoten.length > 0) {
+      const avg = sparquoten.reduce((a,b)=>a+b,0) / sparquoten.length;
+      summaryEl.textContent = `Ø Sparquote (letzte ${sparquoten.length} Monate mit Daten): ${fmtNum(avg,1)}%`;
+    } else {
+      summaryEl.textContent = '';
+    }
+  }
+}
+
+function populateJahresrueckblickYearSelect() {
+  const sel = document.getElementById('jr-year-select');
+  if (!sel) return;
+  const years = new Set();
+  aggregateMonthly().forEach(r => years.add(r.key.slice(0,4)));
+  Object.keys(aggregateKostenByMonth()).forEach(k => years.add(k.slice(0,4)));
+  vermogen.forEach(v => years.add(v.monat.slice(0,4)));
+  const sorted = [...years].sort();
+  const prevValue = sel.value;
+  sel.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (sorted.includes(prevValue)) sel.value = prevValue;
+  else if (sorted.length) sel.value = sorted[sorted.length-1];
+}
+
+function renderJahresrueckblick() {
+  const sel = document.getElementById('jr-year-select');
+  const noteEl = document.getElementById('jr-created-note');
+  const contentEl = document.getElementById('jr-content');
+  if (!sel || !contentEl) return;
+  if (noteEl) noteEl.textContent = `Erstellt am ${new Date().toLocaleDateString('de-DE')}`;
+  const year = sel.value;
+  if (!year) { contentEl.innerHTML = '<p class="note">Noch keine Daten vorhanden.</p>'; return; }
+
+  const monthlyAll = aggregateMonthly();
+  const monthly = monthlyAll.filter(r => r.key.startsWith(year));
+  const std = monthly.reduce((a,r) => a + r.std, 0);
+  const tg = monthly.reduce((a,r) => a + r.tg, 0);
+  const monthlyWithLohn = monthly.filter(r => r.lohn !== null); // nur Monate mit erfasstem Lohn zählen als "abgeschlossen"
+  const lohn = monthlyWithLohn.reduce((a,r) => a + r.lohn, 0);
+  const lt = lohn + tg; // Gesamt-Lohn+TG fürs Jahr (Trinkgeld auch aus Monaten ohne Lohn-Eintrag)
+
+  const kMap = aggregateKostenByMonth();
+  const fixkosten = Object.keys(kMap).filter(k => k.startsWith(year)).reduce((a,k) => a + kMap[k], 0);
+
+  // Für Netto übrig/Sparquote nur Monate mit bekanntem Lohn verwenden, damit Zähler & Nenner konsistent sind
+  const ltKnown = lohn + monthlyWithLohn.reduce((a,r) => a + r.tg, 0);
+  const fixkostenKnown = monthlyWithLohn.reduce((a,r) => a + (kMap[r.key] || 0), 0);
+  const nettoUebrig = monthlyWithLohn.length ? (ltKnown - fixkostenKnown) : null;
+  const sparquote = (nettoUebrig !== null && ltKnown > 0) ? (nettoUebrig / ltKnown * 100) : null;
+  const basisNote = monthly.length
+    ? `Netto übrig & Sparquote: Basis ${monthlyWithLohn.length} von ${monthly.length} Monaten mit erfasstem Lohn.`
+    : '';
+  const currentYear = new Date().getFullYear();
+  const isIncomplete = Number(year) === currentYear && monthly.length < 12;
+
+  const vRowsYear = aggregateVermogen().filter(v => v.monat.startsWith(year));
+  const vEnd = vRowsYear.length ? vRowsYear[vRowsYear.length-1] : null;
+  const vStart = vRowsYear.length ? vRowsYear[0] : null;
+  const vDelta = (vStart && vEnd) ? vEnd.gesamt - vStart.gesamt : null;
+
+  const prevYear = String(Number(year) - 1);
+  const prevMonthly = monthlyAll.filter(r => r.key.startsWith(prevYear));
+  const prevHasData = prevMonthly.length > 0;
+  const prevLt = prevMonthly.filter(r => r.lohn !== null).reduce((a,r) => a + r.lohn, 0) + prevMonthly.reduce((a,r) => a + r.tg, 0);
+  const ltDelta = prevHasData ? (lt - prevLt) : null;
+  const ltDeltaPct = (prevHasData && prevLt > 0) ? (ltDelta / prevLt * 100) : null;
+  const vorjahrNote = prevHasData
+    ? `<div class="note" style="margin-top:2px; color:${ltDelta>=0?'var(--green,#1a9e5c)':'var(--red,#d1453b)'};">${ltDelta>=0?'+':''}${fmtEUR(ltDelta)}${ltDeltaPct!==null?` (${fmtNum(ltDeltaPct,1)}%)`:''} ggü. ${prevYear}${isIncomplete?' (unvollständiges Jahr)':''}</div>`
+    : '';
+
+  contentEl.innerHTML = `
+    ${isIncomplete ? `<p class="note" style="font-weight:600;">⚠︎ ${year} ist noch nicht abgeschlossen (bisher ${monthly.length} von 12 Monaten) – Zahlen sind ein Zwischenstand.</p>` : ''}
+    <div class="grid grid-4">
+      <div class="kpi"><div class="label">Stunden ${year}</div><div class="value">${fmtNum(std,1)}</div></div>
+      <div class="kpi"><div class="label">Trinkgeld ${year}</div><div class="value">${fmtEUR(tg)}</div></div>
+      <div class="kpi"><div class="label">Lohn+TG gesamt ${year}</div><div class="value">${fmtEUR(lt)}</div>${vorjahrNote}</div>
+      <div class="kpi"><div class="label">Fixkosten ${year}</div><div class="value">${fmtEUR(fixkosten)}</div></div>
+    </div>
+    <div class="grid grid-4" style="margin-top:14px;">
+      <div class="kpi"><div class="label">Netto übrig ${year}</div><div class="value">${nettoUebrig!==null?fmtEUR(nettoUebrig):'–'}</div></div>
+      <div class="kpi"><div class="label">Ø Sparquote ${year}</div><div class="value">${sparquote!==null?fmtNum(sparquote,1)+'%':'–'}</div></div>
+      <div class="kpi"><div class="label">Vermögen Jahresende</div><div class="value">${vEnd?fmtEUR(vEnd.gesamt):'–'}</div></div>
+      <div class="kpi"><div class="label">Δ Vermögen im Jahr</div><div class="value">${vDelta!==null?fmtEUR(vDelta):'–'}</div></div>
+    </div>
+    ${basisNote ? `<p class="note" style="margin-top:10px;">${basisNote}</p>` : ''}
+  `;
+}
+
+function printJahresrueckblick() {
+  const wasArbeit = document.getElementById('tab-arbeit').style.display !== 'none';
+  if (wasArbeit) switchTab('finanzen');
+  document.body.classList.add('jr-print-mode');
+  window.print();
+  document.body.classList.remove('jr-print-mode');
+  if (wasArbeit) switchTab('arbeit');
+}
+
+function finRenderAll() {
+  const vRows = aggregateVermogen();
+  renderFinKPIs(vRows);
+  renderZielTracker(vRows);
+  renderVermogenChart(vRows);
+  renderVermogenTable(vRows);
+  renderAnteileTable(vRows);
+  renderKursgewinn();
+  populateKategorieSelect();
+  renderKostenChart();
+  renderKostenTable();
+  renderWachstum();
+  renderGesamtuebersicht();
+  populateJahresrueckblickYearSelect();
+  renderJahresrueckblick();
+}
+
+function renderAll() {
+  const monthlyRows = aggregateMonthly();
+  populateKpiMonthSelect();
+  renderKPIs(monthlyRows);
+  renderMonthlyTable(monthlyRows);
+  renderCharts(monthlyRows);
+  renderComparison();
+  populateMonthFilter();
+  renderDailyTable();
+  finRenderAll();
+}
+
+function buildBackupData() {
+  return { daily, lohn, vermogen, kosten, ziel, exportedAt: new Date().toISOString() };
+}
+
+function applyBackupData(data, { confirmPrompt = true } = {}) {
+  if (!data || !Array.isArray(data.daily)) {
+    return { ok: false, error: 'Diese Daten sehen nicht wie ein Alter-Wirt-Backup aus (Feld "daily" fehlt).' };
+  }
+  const anzahlTage = data.daily.length;
+  const anzahlMonate = data.lohn ? Object.keys(data.lohn).length : 0;
+  if (confirmPrompt) {
+    let proceed = true;
+    try {
+      proceed = confirm(`Daten gefunden: ${anzahlTage} Tageseinträge, ${anzahlMonate} Monate mit Lohn.\n\nAktuelle Daten in diesem Browser werden überschrieben. Fortfahren?`);
+    } catch (e) { proceed = true; }
+    if (!proceed) return { ok: false, cancelled: true };
+  }
+  daily = data.daily || [];
+  lohn = data.lohn || {};
+  vermogen = data.vermogen || vermogen;
+  kosten = data.kosten || kosten;
+  ziel = data.ziel || ziel;
+  saveDaily(); saveLohn(); saveVermogen(); saveKosten(); saveZiel();
+  if (ziel.betrag) document.getElementById('ziel-betrag').value = ziel.betrag;
+  renderAll();
+  return { ok: true, anzahlTage, anzahlMonate };
+}
+
+function exportBackup() {
+  const data = buildBackupData();
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `alter_wirt_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) {
+    alert('Keine Datei ausgewählt.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => alert('Die Datei konnte nicht gelesen werden (Lesefehler).');
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (err) {
+      alert('Das ist keine gültige Backup-Datei (kein lesbares JSON).\n\nFehler: ' + err.message);
+      event.target.value = '';
+      return;
+    }
+    const result = applyBackupData(data);
+    if (!result.ok) {
+      if (!result.cancelled) alert(result.error);
+      event.target.value = '';
+      return;
+    }
+    const anzahlTage = result.anzahlTage;
+    alert(`Backup importiert: ${daily.length} Tageseinträge geladen.`);
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function getSyncUrl() {
+  return (localStorage.getItem(STORAGE_SYNC_URL) || '').trim();
+}
+
+function setSyncStatus(msg) {
+  const el = document.getElementById('sync-last-status');
+  if (el) el.textContent = msg;
+}
+
+function saveSyncUrl() {
+  const input = document.getElementById('sync-url');
+  const url = input.value.trim();
+  if (!url) {
+    alert('Bitte zuerst die Web-App-URL aus Google Apps Script eintragen.');
+    return;
+  }
+  localStorage.setItem(STORAGE_SYNC_URL, url);
+  updateSyncUrlStatus();
+  alert('URL gespeichert – gilt nur für dieses Gerät/diesen Browser. Auf dem anderen Gerät (z.B. Handy) musst du dieselbe URL einmalig ebenfalls eintragen.');
+}
+
+function updateSyncUrlStatus() {
+  const url = getSyncUrl();
+  const statusEl = document.getElementById('sync-url-status');
+  const input = document.getElementById('sync-url');
+  if (input && url) input.value = url;
+  if (statusEl) statusEl.textContent = url ? '✓ URL auf diesem Gerät hinterlegt.' : '⚠︎ Noch keine URL hinterlegt.';
+  const last = localStorage.getItem(STORAGE_SYNC_LAST);
+  if (last) setSyncStatus(`Letzter Sync auf diesem Gerät: ${new Date(last).toLocaleString('de-DE')}`);
+}
+
+async function syncUpload() {
+  const url = getSyncUrl();
+  if (!url) { alert('Bitte zuerst die Web-App-URL eintragen und speichern.'); return; }
+  setSyncStatus('Lade hoch …');
+  try {
+    const data = buildBackupData();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // vermeidet CORS-Preflight bei Apps Script
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Server antwortete mit Status ' + res.status);
+    localStorage.setItem(STORAGE_SYNC_LAST, new Date().toISOString());
+    setSyncStatus(`✓ Hochgeladen am ${new Date().toLocaleString('de-DE')} (${data.daily.length} Tageseinträge).`);
+  } catch (err) {
+    setSyncStatus('');
+    alert('Hochladen fehlgeschlagen: ' + err.message + '\n\nPrüfe die URL und deine Internetverbindung.');
+  }
+}
+
+async function syncDownload() {
+  const url = getSyncUrl();
+  if (!url) { alert('Bitte zuerst die Web-App-URL eintragen und speichern.'); return; }
+  setSyncStatus('Lade herunter …');
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    if (!res.ok) throw new Error('Server antwortete mit Status ' + res.status);
+    const data = await res.json();
+    const result = applyBackupData(data);
+    if (!result.ok) {
+      setSyncStatus('');
+      if (!result.cancelled) alert(result.error);
+      return;
+    }
+    localStorage.setItem(STORAGE_SYNC_LAST, new Date().toISOString());
+    setSyncStatus(`✓ Heruntergeladen am ${new Date().toLocaleString('de-DE')} (${result.anzahlTage} Tageseinträge).`);
+  } catch (err) {
+    setSyncStatus('');
+    alert('Herunterladen fehlgeschlagen: ' + err.message + '\n\nPrüfe die URL und deine Internetverbindung.');
+  }
+}
+
+document.getElementById('filter-month').addEventListener('change', renderDailyTable);
+document.getElementById('kpi-month-select').addEventListener('change', () => renderKPIs(aggregateMonthly()));
+document.getElementById('in-date').value = new Date().toISOString().slice(0,10);
+populateCompareMonthSelect();
+document.getElementById('btn-mode-ytd').classList.add('active-mode');
+document.getElementById('print-header').innerHTML = `<h1>Alter Wirt – Monats- & Jahresübersicht</h1><p>Erstellt am ${new Date().toLocaleDateString('de-DE')}</p>`;
+document.getElementById('v-monat').value = new Date().toISOString().slice(0,7);
+document.getElementById('k-monat').value = new Date().toISOString().slice(0,7);
+if (ziel.betrag) document.getElementById('ziel-betrag').value = ziel.betrag;
+updateSyncUrlStatus();
+
+renderAll();
+</script>
+</body>
+</html>
